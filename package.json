@@ -19,12 +19,13 @@
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "zod": "^4.4.3",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",
+    "swr": "^2.5.1",
     "tree-sitter-wasms": "^0.1.13",
-    "web-tree-sitter": "^0.20.8"
+    "web-tree-sitter": "^0.20.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
