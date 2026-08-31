@@ -137,7 +137,9 @@ function Round3PageContent() {
               ROUND TIMER
             </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#121433] text-cyan-400 border border-[#212659] font-bold">
-              60:00
+              {timerEndAt && timerStartAt
+                ? `${Math.round((timerEndAt - timerStartAt) / 60000)}:00`
+                : '60:00'}
             </span>
           </div>
 

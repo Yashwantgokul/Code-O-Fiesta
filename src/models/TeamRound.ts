@@ -66,6 +66,14 @@ const Round2QuestionSchema = new Schema(
       type: Date,
       default: null,
     },
+    handoverStartedAt: {
+      type: Date,
+      default: null,
+    },
+    handoverEndsAt: {
+      type: Date,
+      default: null,
+    },
     member2StartedAt: {
       type: Date,
       default: null,
@@ -84,6 +92,10 @@ const Round2QuestionSchema = new Schema(
       default: '',
     },
     hasSeenBothPhases: {
+      type: Boolean,
+      default: false,
+    },
+    member2Submitted: {
       type: Boolean,
       default: false,
     },
@@ -222,6 +234,11 @@ const TeamRoundSchema = new Schema(
       phaseEndsAt: {
         type: Date,
         default: null,
+      },
+      configSnapshot: {
+        member1DurationSeconds: Number,
+        handoverDurationSeconds: Number,
+        member2DurationSeconds: Number,
       },
       questions: {
         type: [Round2QuestionSchema],

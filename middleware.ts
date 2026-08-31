@@ -19,6 +19,9 @@ const PUBLIC_ROUTES = [
   '/',
 ];
 
+// API routes handle their own authentication via requireAuthentication
+const API_ROUTES = '/api';
+
 // Routes that require authentication
 const PROTECTED_ROUTES = [
   '/dashboard',
@@ -55,6 +58,11 @@ export async function middleware(request: NextRequest) {
 
   // Allow API routes that start with /api/auth
   if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next();
+  }
+
+  // Allow all API routes (they handle their own authentication)
+  if (pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 

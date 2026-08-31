@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Problem } from '@/types/problem';
 import { problemsService } from '@/services/problems';
 
-export function useProblemState(problemId: string, roundNumber: number) {
+export function useProblemState(problemId: string, roundNumber: number, allowProblemFetch = true) {
   const [problem, setProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +16,15 @@ export function useProblemState(problemId: string, roundNumber: number) {
     async function loadData() {
       setIsLoading(true);
       setError(null);
+      if (!allowProblemFetch) {
+        // Keep the IDE available without requesting protected Round 2 content.
+        setProblem({ id: problemId, title: 'Problem hidden', statement: '', difficulty: 'easy', points: 0, examples: [], constraints: [], timeLimit: 0, memoryLimit: 0, roundNumber: 2 });
+        setIsSolved(false);
+        setPrevProblemId(null);
+        setNextProblemId(null);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [probData, stateData, roundProbs] = await Promise.all([
           problemsService.fetchProblem(problemId),
@@ -70,7 +79,7 @@ export function useProblemState(problemId: string, roundNumber: number) {
     return () => {
       active = false;
     };
-  }, [problemId, roundNumber]);
+  }, [problemId, roundNumber, allowProblemFetch]);
 
   return {
     problem,

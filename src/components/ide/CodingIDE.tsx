@@ -31,7 +31,6 @@ import LoadingState from '@/components/common/LoadingState';
 import ErrorState from '@/components/common/ErrorState';
 
 // Round 2 Overlays
-import ForcedSwitchOverlay from '@/components/round2/ForcedSwitchOverlay';
 import ActiveMemberIndicator from '@/components/round2/ActiveMemberIndicator';
 import RelayStatus from '@/components/round2/RelayStatus';
 
@@ -69,7 +68,7 @@ export default function CodingIDE({
     isSolved,
     nextProblemId,
     prevProblemId,
-  } = useProblemState(problemId, roundNumber);
+  } = useProblemState(problemId, roundNumber, !hideProblemStatement);
 
   // 2. Fetch IDE state
   const {
@@ -103,9 +102,9 @@ export default function CodingIDE({
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
 
-  // Relay Turn timer countdown (10 minutes default / from roundConfig)
+  // Relay time is display-only. The Round 2 page refreshes authoritative
+  // server timestamps; this component never changes competition state.
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [showSwitchOverlay, setShowSwitchOverlay] = useState(false);
 
   const isDraggingSplit = useRef(false);
 
@@ -119,7 +118,7 @@ export default function CodingIDE({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Sync turn countdown
+  // Sync the latest server-calculated remaining duration for display.
   useEffect(() => {
     if (mode === 'relay') {
       const initialMs = roundConfig?.forceSwitchAfterMs || 600_000;
@@ -127,28 +126,6 @@ export default function CodingIDE({
     }
   }, [mode, roundConfig?.forceSwitchAfterMs, roundConfig?.activeTeamMember]);
 
-  useEffect(() => {
-    if (mode !== 'relay' || timeLeft <= 0) {
-      if (timeLeft === 0 && mode === 'relay' && roundConfig?.activeTeamMember === 'member1') {
-        setShowSwitchOverlay(true);
-      }
-      return;
-    }
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          if (roundConfig?.activeTeamMember === 'member1') {
-            setShowSwitchOverlay(true);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [mode, timeLeft, roundConfig?.activeTeamMember]);
 
   // Auto-switch tabs when actions complete
   useEffect(() => {
@@ -236,14 +213,6 @@ export default function CodingIDE({
 
   return (
     <SubmissionController value={controllerValue}>
-      {/* Switch overlay for Round 2 */}
-      {showSwitchOverlay && (
-        <ForcedSwitchOverlay 
-          onDismiss={() => setShowSwitchOverlay(false)} 
-          targetMember="Member 2" 
-        />
-      )}
-
       {/* Main Page Layout Wrapper */}
       <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
         
@@ -419,7 +388,7 @@ export default function CodingIDE({
               <div className="flex items-center gap-3 ml-auto">
                 <RunButton 
                   onClick={run} 
-                  disabled={isRunning || isSubmitting} 
+                  disabled={isRunning || isSubmitting || isLocked}
                   isRunning={isRunning} 
                 />
                 <SubmitButton

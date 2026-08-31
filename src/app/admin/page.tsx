@@ -11,6 +11,7 @@ import AdminTeamTable from '@/components/admin/AdminTeamTable';
 import AdminSubmissionTable from '@/components/admin/AdminSubmissionTable';
 import AdminLeaderboard from '@/components/admin/AdminLeaderboard';
 import AdminNav from '@/components/admin/AdminNav';
+import Round2ConfigPanel from '@/components/admin/Round2ConfigPanel';
 import LoadingState from '@/components/common/LoadingState';
 import ErrorState from '@/components/common/ErrorState';
 import { adminService } from '@/services/admin';
@@ -110,6 +111,16 @@ function AdminContent() {
     }
   };
 
+  const handleRestartRound = async (roundNumber: number) => {
+    try {
+      const res = await adminService.restartRound(roundNumber);
+      if (res.error) alert(res.error);
+      await fetchAdminData(false);
+    } catch (err) {
+      console.error('Error restarting round:', err);
+    }
+  };
+
   const handleAdjustTime = async (roundNumber: number, durationSeconds: number) => {
     try {
       const res = await adminService.overrideRoundDuration(roundNumber, durationSeconds);
@@ -194,6 +205,7 @@ function AdminContent() {
           onPauseRound={handlePauseRound}
           onResumeRound={handleResumeRound}
           onCompleteRound={handleCompleteRound}
+          onRestartRound={handleRestartRound}
         />
 
         {/* Timer status if a round is active */}
@@ -202,6 +214,8 @@ function AdminContent() {
           activeTeamsCount={activeTeamsCount}
           onAdjustTime={handleAdjustTime}
         />
+
+        <Round2ConfigPanel />
 
         {/* Main interactive grids */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">

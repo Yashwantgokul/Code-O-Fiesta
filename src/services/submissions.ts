@@ -8,6 +8,7 @@ export const submissionsService = {
     language: string;
     customInput?: string;
     mode?: 'examples' | 'custom';
+    roundNumber?: number;
   }): Promise<RunResult> => {
     return apiCall('/api/submissions/run', {
       method: 'POST',

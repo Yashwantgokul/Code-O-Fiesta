@@ -9,15 +9,13 @@ export function successResponse<T>(
   return NextResponse.json(data, { status });
 }
 
-export function errorResponse(error: unknown) {
+export function errorResponse(error: unknown, statusOverride?: number) {
   if (error instanceof ApiError) {
     return NextResponse.json(
       {
         message: error.message,
       },
-      {
-        status: error.status,
-      },
+      { status: statusOverride ?? error.status },
     );
   }
 
@@ -28,7 +26,7 @@ export function errorResponse(error: unknown) {
       message: 'Internal server error',
     },
     {
-      status: 500,
+      status: statusOverride ?? 500,
     },
   );
 }

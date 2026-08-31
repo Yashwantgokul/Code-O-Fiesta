@@ -48,7 +48,13 @@ export default function Round2ProblemPage({ params }: PageProps) {
     try {
       const st = await problemsService.fetchRoundState(2);
       setRoundState(st);
+      setError(null);
     } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      // The round-2 layout's RoundGate already shows a dedicated screen when
+      // the round isn't active (upcoming/paused/completed) and will unmount
+      // this page shortly — don't flash a raw error here while it catches up.
+      if (/not currently active/i.test(message)) return;
       console.error(err);
       setError('Failed to fetch round state.');
     }
@@ -92,18 +98,10 @@ export default function Round2ProblemPage({ params }: PageProps) {
   const currentPhase = roundState.phase;
   const activeMember = roundState.activeMember;
   
-  const isMyTurn = activeMember === user.teamMember && currentPhase !== 'COMPLETED';
+  const allowedActions = roundState.allowedActions ?? {};
+  const isMyTurn = allowedActions.canEditCode === true;
   const member2IsActive = activeMember === 'MEMBER_2';
   const member1IsActive = activeMember === 'MEMBER_1';
-
-  // Can we complete? (Only Member 1, after both phases seen)
-  let canComplete = false;
-  let hasSeenBothPhases = false; // We don't get this easily from state, wait, we do get questions from state!
-  
-  // Wait, `roundState` doesn't include `hasSeenBothPhases` directly. 
-  // Let's just rely on the API: if they try to complete too early, it returns 403.
-  // Actually, we can fetch questions to know if it's completed. Let's just always show complete if it's member 1 and not first phase maybe?
-  // Let's just enable the complete button for member 1.
 
   const roundStartedAt = roundState.phaseStartedAt ? new Date(roundState.phaseStartedAt).toISOString() : null;
   const roundEndsAt = roundState.phaseEndsAt ? new Date(roundState.phaseEndsAt).toISOString() : null;
@@ -117,14 +115,9 @@ export default function Round2ProblemPage({ params }: PageProps) {
             <div className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-purple-400">
               Round 2
             </div>
-            {user.teamMember === 'MEMBER_1' && currentPhase !== 'COMPLETED' && (
-              <button
-                onClick={handleComplete}
-                className="rounded bg-emerald-600 px-3 py-1 text-xs font-bold hover:bg-emerald-500"
-              >
-                COMPLETE QUESTION
-              </button>
-            )}
+            <div className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-cyan-300">
+              Question {roundState.currentQuestionNumber} / {roundState.totalQuestions}
+            </div>
           </div>
           <h1 className="mt-0.5 font-mono text-sm font-bold tracking-wide text-white">
             Blind Relay Workspace
@@ -132,12 +125,12 @@ export default function Round2ProblemPage({ params }: PageProps) {
           <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-sm">
             <MemberStatus
               member="MEMBER 1"
-              status={member1IsActive ? 'ACTIVE / CODING' : 'COMPLETED / PASSED'}
+              status={currentPhase === 'HANDOVER' ? 'HANDOVER IN PROGRESS' : member1IsActive ? 'ACTIVE / CODING' : 'WAITING'}
               active={member1IsActive}
             />
             <MemberStatus
               member="MEMBER 2"
-              status={member2IsActive ? 'ACTIVE / YOUR TURN' : 'WAITING FOR TURN'}
+              status={roundState.member2Submitted ? 'SUBMITTED / WAITING' : member2IsActive ? 'ACTIVE / YOUR TURN' : 'WAITING FOR TURN'}
               active={member2IsActive}
             />
           </div>
@@ -172,7 +165,7 @@ export default function Round2ProblemPage({ params }: PageProps) {
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400">Blind Relay</div>
                 <div className="mt-3 text-sm font-bold tracking-wide text-white">{user.teamMember?.replace('_', ' ')}</div>
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                  WAIT FOR YOUR TURN
+                  {currentPhase === 'HANDOVER' ? 'HANDOVER — SWITCHING TO MEMBER 2' : roundState.member2Submitted ? 'SUBMITTED — WAITING FOR PHASE END' : 'WAIT FOR YOUR TURN'}
                 </div>
               </div>
             </aside>
@@ -183,7 +176,8 @@ export default function Round2ProblemPage({ params }: PageProps) {
           roundNumber={2}
           mode="relay"
           roundConfig={{ mode: 'relay', activeTeamMember: activeMember as any, currentUserId: user.teamMember as string, serverCode: roundState.currentCode, forceSwitchAfterMs: msLeft }}
-          hideProblemStatement={!isMyTurn}
+          readOnly={!allowedActions.canEditCode}
+          hideProblemStatement={!allowedActions.canSeeProblem}
         />
       </main>
     </div>

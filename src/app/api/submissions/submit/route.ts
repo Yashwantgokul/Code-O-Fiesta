@@ -13,6 +13,7 @@ import {
   incrementRound3SubmissionCount,
 } from '../../_services/round3.service';
 import { RoundStatus } from '@/constants/event';
+import { roundService } from '@/app/api/_services/round.service';
 
 declare global {
   var submissionCache:
@@ -51,6 +52,14 @@ export async function POST(request: Request) {
 
     if (!problemId || !code || !language) {
       return NextResponse.json({ error: 'Missing required fields: problemId, code, language' }, { status: 400 });
+    }
+
+    // Round 2 permissions are server-enforced. A browser cannot submit during
+    // handover, from the inactive member, or after Member 2 already submitted.
+    let round2Actor: Awaited<ReturnType<typeof roundService.resolveActor>> | null = null;
+    if (roundNumber === 2) {
+      round2Actor = await roundService.resolveActor(request);
+      await roundService.assertCanSubmit({ roundNumber: 2, actor: round2Actor }, problemId);
     }
 
     const languageId = LANGUAGE_IDS[language];
@@ -169,6 +178,10 @@ export async function POST(request: Request) {
     });
 
     submissionId = sub._id.toString();
+
+    if (round2Actor) {
+      await roundService.markSubmitted({ roundNumber: 2, actor: round2Actor });
+    }
 
     // For round 3: increment submission count in TeamRound
     if (roundNumber === 3 && roundId && teamId) {

@@ -11,13 +11,13 @@ export default function RelayInstructions() {
       </h3>
       <ol className="list-decimal pl-5 flex flex-col gap-3 leading-relaxed">
         <li>
-          <span className="text-white font-bold">Relay Turn Timing:</span> Member 1 drives the editor for the first <span className="text-cyan-400 font-bold">15 minutes</span>, followed by a forced handoff to Member 2 for <span className="text-cyan-400 font-bold">25 minutes</span>.
+          <span className="text-white font-bold">Relay Turn Timing:</span> The administrator configures the Member 1 duration, the handover gap, and the Member 2 duration. The workspace always displays the server-authoritative timer.
         </li>
         <li>
           <span className="text-white font-bold">Blind Play:</span> The problem description is visible to Member 1, but completely <span className="text-red-400 font-bold">hidden</span> for Member 2. Member 2 must analyze and complete the code written by Member 1 without seeing the statement.
         </li>
         <li>
-          <span className="text-white font-bold">Comments Banned:</span> Adding any comments (<code className="text-red-400">//</code>, <code className="text-red-400">/* */</code>, <code className="text-red-400">#</code>) is strictly forbidden. Submissions containing comment syntax will be automatically rejected.
+          <span className="text-white font-bold">Comments Banned:</span> Adding any comments (<code className="text-red-400">{'//'}</code>, <code className="text-red-400">{'/* */'}</code>, <code className="text-red-400">#</code>) is strictly forbidden. Submissions containing comment syntax will be automatically rejected.
         </li>
         <li>
           <span className="text-white font-bold">Shared Codebase:</span> You are collaborating on the same codebase. When your turn begins, you pick up exactly where your partner left off.

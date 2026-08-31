@@ -60,6 +60,7 @@ export type Round1Topic = (typeof Round1Topic)[keyof typeof Round1Topic];
 
 export const Round2Phase = {
   MEMBER_1: 'MEMBER_1',
+  HANDOVER: 'HANDOVER',
   MEMBER_2: 'MEMBER_2',
   COMPLETED: 'COMPLETED',
 } as const;

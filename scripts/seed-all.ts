@@ -42,6 +42,14 @@ const PARTICIPANT_ACCOUNTS = [
     teamMember: TeamMember.MEMBER_1,
   },
   {
+    name: 'Test Participant 1 (Member 2)',
+    email: 'participant1@test.com',
+    password: 'Participant@123',
+    teamCode: 'TEST001',
+    teamName: 'Test Team 1',
+    teamMember: TeamMember.MEMBER_2,
+  },
+  {
     name: 'Test Participant 2',
     email: 'participant2@test.com',
     password: 'Participant@123',
@@ -50,12 +58,28 @@ const PARTICIPANT_ACCOUNTS = [
     teamMember: TeamMember.MEMBER_1,
   },
   {
+    name: 'Test Participant 2 (Member 2)',
+    email: 'participant2@test.com',
+    password: 'Participant@123',
+    teamCode: 'TEST002',
+    teamName: 'Test Team 2',
+    teamMember: TeamMember.MEMBER_2,
+  },
+  {
     name: 'Test Participant 3',
     email: 'participant3@test.com',
     password: 'Participant@123',
     teamCode: 'TEST003',
     teamName: 'Test Team 3',
     teamMember: TeamMember.MEMBER_1,
+  },
+  {
+    name: 'Test Participant 3 (Member 2)',
+    email: 'participant3@test.com',
+    password: 'Participant@123',
+    teamCode: 'TEST003',
+    teamName: 'Test Team 3',
+    teamMember: TeamMember.MEMBER_2,
   },
 ] as const;
 
@@ -281,7 +305,7 @@ async function ensureTeamAndUsers() {
     }
 
     const member = await User.findOneAndUpdate(
-      { email: account.email },
+      { email: account.email, teamMember: account.teamMember },
       {
         $set: {
           name: account.name,

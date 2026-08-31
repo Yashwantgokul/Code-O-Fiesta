@@ -4,13 +4,20 @@ import Problem from '@/models/Problem';
 import Round from '@/models/Round';
 import { RoundStatus } from '@/constants/event';
 import { executeTestCases, calculateVerdict, ExecutionMode } from '../../_services/judge.service';
+import { roundService } from '@/app/api/_services/round.service';
 
 export async function POST(request: Request) {
   const t0 = performance.now();
   
   try {
     const body = await request.json();
-    const { code, language, customInput, problemId, mode = 'custom' } = body;
+    const { code, language, customInput, problemId, mode = 'custom', roundNumber } = body;
+    if (roundNumber === 2) {
+      const actor = await roundService.resolveActor(request);
+      // For both "run examples" and "custom" modes, allow anytime user can edit code
+      // Only require submit permissions for actual submission
+      // Remove this check entirely since run modes should always be allowed for testing
+    }
     const tParsed = performance.now();
 
     let cpuTimeLimit = 2.0;
