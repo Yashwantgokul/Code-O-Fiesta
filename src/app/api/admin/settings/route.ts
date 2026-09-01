@@ -8,13 +8,13 @@ export async function POST(request: Request) {
   try {
     const session = await requireAdmin(request);
     const body = await request.json();
-    const { strictMode, copyPasteBlocker, reason } = body;
+    const { strictMode, copyPasteBlocker, maxTabSwitches, reason } = body;
     
     await connectDB();
     
     let settings = await GlobalSettings.findOne();
     if (!settings) {
-      settings = new GlobalSettings({ strictMode: true, copyPasteBlocker: false });
+      settings = new GlobalSettings({ strictMode: true, copyPasteBlocker: false, maxTabSwitches: 5 });
     }
     
     if (strictMode !== undefined && strictMode !== settings.strictMode) {
@@ -35,6 +35,18 @@ export async function POST(request: Request) {
         userId: session.userId,
         type: 'ADMIN_ACTION',
         details: `COPY_PASTE_BLOCKER_${copyPasteBlocker ? 'ENABLED' : 'DISABLED'}: Admin toggled copy-paste blocker`,
+        severity: 'NONE'
+      });
+    }
+
+    if (maxTabSwitches !== undefined && maxTabSwitches !== settings.maxTabSwitches) {
+      const oldVal = settings.maxTabSwitches;
+      settings.maxTabSwitches = maxTabSwitches;
+      
+      await IntegrityLog.create({
+        userId: session.userId,
+        type: 'ADMIN_ACTION',
+        details: `MAX_TAB_SWITCHES_CHANGED: Admin changed max tab switches from ${oldVal} to ${maxTabSwitches}`,
         severity: 'NONE'
       });
     }

@@ -34,12 +34,29 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function IntegrityContent() {
+  const formatReasons = (reasons?: string[]) => {
+    if (!reasons || reasons.length === 0) return null;
+    const map: Record<string, string> = {
+      'TAB_HIDDEN': 'Switched Tabs',
+      'WINDOW_BLUR': 'Clicked Outside',
+      'FULLSCREEN_EXIT': 'Exited Fullscreen',
+    };
+    return reasons.map(r => map[r] || r).join(', ');
+  };
+
   const { data, error, mutate } = useSWR('/api/admin/integrity', fetcher, {
     refreshInterval: 2000,
   });
 
-  const { strictMode, copyPasteBlocker, mutate: mutateSettings } = useGlobalSettings();
+  const { strictMode, copyPasteBlocker, maxTabSwitches, mutate: mutateSettings } = useGlobalSettings();
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [localMaxTabs, setLocalMaxTabs] = useState<number | ''>('');
+
+  useEffect(() => {
+    if (maxTabSwitches !== undefined && localMaxTabs === '') {
+      setLocalMaxTabs(maxTabSwitches);
+    }
+  }, [maxTabSwitches, localMaxTabs]);
 
   const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
@@ -73,6 +90,23 @@ function IntegrityContent() {
     }
   };
 
+  const saveMaxTabs = async (val: number) => {
+    if (val < 1 || isUpdatingSettings) return;
+    setIsUpdatingSettings(true);
+    try {
+      await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxTabSwitches: val }),
+      });
+      mutateSettings();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
   const toggleCopyPaste = async () => {
     if (isUpdatingSettings) return;
     const newValue = !copyPasteBlocker;
@@ -96,34 +130,55 @@ function IntegrityContent() {
   };
 
   useEffect(() => {
+    if (selectedParticipant && data?.participants) {
+      const updated = data.participants.find((p: any) => p._id === selectedParticipant._id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedParticipant)) {
+        setSelectedParticipant(updated);
+      }
+    }
+  }, [data?.participants, selectedParticipant]);
+
+  // Fetch logs initially and whenever awaySessionCount changes
+  useEffect(() => {
     if (selectedParticipant) {
-      setIsLogsLoading(true);
       const targetId = selectedParticipant.userId?._id || selectedParticipant.userId;
       if (targetId) {
+        setIsLogsLoading(logs.length === 0);
         fetch(`/api/admin/integrity/${targetId}`)
           .then((res) => res.json())
-          .then((d) => setLogs(d.logs || []))
+          .then((d) => {
+            if (d.error) console.error('Logs fetch error:', d.error);
+            setLogs(d.logs || []);
+          })
           .finally(() => setIsLogsLoading(false));
       } else {
         setLogs([]);
         setIsLogsLoading(false);
       }
     }
-  }, [selectedParticipant]);
+  }, [selectedParticipant?.userId, selectedParticipant?.awaySessionCount]);
 
-  const handleAction = async (action: string, reason?: string) => {
+  const handleAction = async (action: string, extraArg?: string) => {
     if (!selectedParticipant) return;
     try {
+      let finalExtraArg = extraArg;
+      if (action === 'LOCK_SUBMISSIONS' && extraArg === undefined) {
+        finalExtraArg = window.prompt('Enter reason for locking (optional):') || '';
+      }
       const targetId = selectedParticipant.userId?._id || selectedParticipant.userId;
-      await fetch('/api/admin/integrity', {
+      const body: any = { action, userId: targetId };
+      if (action === 'LOCK_SUBMISSIONS') body.reason = finalExtraArg;
+      
+      const res = await fetch('/api/admin/integrity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          userId: targetId,
-          reason,
-        }),
+        body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert('Error: ' + errorData.error);
+        return;
+      }
       mutate();
       if (action === 'MARK_REVIEWED') setSelectedParticipant(null);
     } catch (e) {
@@ -145,6 +200,17 @@ function IntegrityContent() {
         <div className="flex-1">
           <h2 className="text-lg font-bold mb-1">Global Settings</h2>
           <p className="text-sm text-slate-400 mb-4">Real-time enforcement controls. These apply instantly to all active participants.</p>
+          
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="bg-[#151838] p-3 rounded text-center">
+              <div className="text-slate-400 text-xs uppercase mb-1">Active Teams</div>
+              <div className="text-xl font-bold">{data.stats?.activeTeams || 0}</div>
+            </div>
+            <div className="bg-[#151838] p-3 rounded text-center">
+              <div className="text-slate-400 text-xs uppercase mb-1">Global Tab Switches</div>
+              <div className="text-xl font-bold">{data.stats?.totalTabSwitches || 0}</div>
+            </div>
+          </div>
           
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between p-4 bg-[#151838] rounded-lg">
@@ -174,151 +240,254 @@ function IntegrityContent() {
                 <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${copyPasteBlocker ? 'translate-x-9' : 'translate-x-1'}`} />
               </button>
             </div>
+            
+            <div className="flex items-center justify-between p-4 bg-[#151838] rounded-lg">
+              <div>
+                <div className="font-bold mb-1">Max Tab Switches</div>
+                <div className="text-xs text-slate-400">Auto-locks submissions if participant exceeds this limit.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  className="w-16 px-2 py-1 bg-[#0c0d21] border border-[#1e1e3a] rounded text-sm text-center focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                  value={localMaxTabs}
+                  disabled={isUpdatingSettings}
+                  onChange={(e) => setLocalMaxTabs(parseInt(e.target.value) || '')}
+                  onBlur={() => {
+                    if (typeof localMaxTabs === 'number' && localMaxTabs !== maxTabSwitches) {
+                      saveMaxTabs(localMaxTabs);
+                    } else if (localMaxTabs === '') {
+                      setLocalMaxTabs(maxTabSwitches);
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Table */}
-        <div className="lg:col-span-2 bg-[#0d0e24] border border-[#1e224d] rounded-xl overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[#151838] text-slate-300 font-mono text-xs uppercase">
-              <tr>
-                <th className="px-6 py-4">Participant</th>
-                <th className="px-6 py-4">Sessions</th>
-                <th className="px-6 py-4">Total Away</th>
-                <th className="px-6 py-4">Longest</th>
-                <th className="px-6 py-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1e224d]">
-              {(data.participants || []).map((p: any) => (
-                <tr 
-                  key={p._id} 
-                  onClick={() => setSelectedParticipant(p)}
-                  className={`cursor-pointer transition-colors ${selectedParticipant?._id === p._id ? 'bg-purple-500/10' : 'hover:bg-slate-800/50'}`}
-                >
-                  <td className="px-6 py-4 font-medium flex items-center gap-2">
-                    {p.userId?.username || p.userId?.name || 'Unknown'}
-                    {p.currentlyAway && (
-                      <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-slate-300">{p.awaySessionCount}</td>
-                  <td className="px-6 py-4 text-slate-300">{formatDuration(p.totalAwayTimeMs)}</td>
-                  <td className="px-6 py-4 text-slate-300">{formatDuration(p.longestAwaySessionMs)}</td>
-                  <td className="px-6 py-4"><StatusBadge status={p.currentStatus} /></td>
-                </tr>
-              ))}
-              {(data.participants || []).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No participants tracked yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Sidebar Details */}
-        <div className="bg-[#0d0e24] border border-[#1e224d] rounded-xl p-6">
-          {selectedParticipant ? (
-            <div>
-              <div className="mb-6 flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold">{selectedParticipant.userId?.username}</h2>
-                  <div className="mt-2"><StatusBadge status={selectedParticipant.currentStatus} /></div>
-                </div>
-                {selectedParticipant.currentlyAway && (
-                  <div className="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1.5 rounded text-xs font-bold animate-pulse">
-                    🚨 CURRENTLY AWAY
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                <div className="bg-[#151838] p-3 rounded">
-                  <div className="text-slate-400 text-xs mb-1">Away Sessions</div>
-                  <div className="font-bold">{selectedParticipant.awaySessionCount}</div>
-                </div>
-                <div className="bg-[#151838] p-3 rounded">
-                  <div className="text-slate-400 text-xs mb-1">Total Away</div>
-                  <div className="font-bold">{formatDuration(selectedParticipant.totalAwayTimeMs)}</div>
-                </div>
-                <div className="bg-[#151838] p-3 rounded">
-                  <div className="text-slate-400 text-xs mb-1">Longest Session</div>
-                  <div className="font-bold">{formatDuration(selectedParticipant.longestAwaySessionMs)}</div>
-                </div>
-                <div className="bg-[#151838] p-3 rounded">
-                  <div className="text-slate-400 text-xs mb-1">Fullscreen Exits</div>
-                  <div className="font-bold">{selectedParticipant.fullscreenExitCount}</div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 mb-8">
-                <button 
-                  onClick={() => handleAction('MARK_REVIEWED')}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 font-medium rounded text-sm transition-colors"
-                >
-                  Mark as Reviewed
-                </button>
-                {selectedParticipant.isSubmissionsLocked ? (
-                  <button 
-                    onClick={() => handleAction('RELEASE_SUBMISSIONS')}
-                    className="w-full py-2 bg-slate-600 hover:bg-slate-700 font-medium rounded text-sm transition-colors"
+      <div className="bg-[#0d0e24] border border-[#1e224d] rounded-xl overflow-hidden mb-8">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-[#151838] text-slate-300 font-mono text-xs uppercase">
+            <tr>
+              <th className="px-6 py-4">Participant</th>
+              <th className="px-6 py-4">Sessions</th>
+              <th className="px-6 py-4">Total Away</th>
+              <th className="px-6 py-4">Longest</th>
+              <th className="px-6 py-4">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1e224d]">
+            {(data.participants || []).map((p: any) => {
+              const isSelected = selectedParticipant?._id === p._id;
+              return (
+                <React.Fragment key={p._id}>
+                  <tr 
+                    onClick={() => setSelectedParticipant(isSelected ? null : p)}
+                    className={`cursor-pointer transition-colors ${isSelected ? 'bg-purple-500/20' : 'hover:bg-slate-800/50'}`}
                   >
-                    Release Submissions
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      const reason = prompt('Reason for locking submissions:');
-                      if (reason !== null) handleAction('LOCK_SUBMISSIONS', reason);
-                    }}
-                    className="w-full py-2 border border-red-500/50 text-red-400 hover:bg-red-500/10 font-medium rounded text-sm transition-colors"
-                  >
-                    Lock Submissions
-                  </button>
-                )}
-              </div>
-
-              <h3 className="text-xs font-mono tracking-widest text-slate-400 uppercase mb-4">Recent Activity</h3>
-              
-              {isLogsLoading ? (
-                <div className="text-sm text-slate-500">Loading activity...</div>
-              ) : (
-                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {logs.map((log) => (
-                    <div key={log._id} className="border-l-2 border-slate-700 pl-3">
-                      <div className="text-xs text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</div>
-                      <div className="text-sm font-medium mt-1">
-                        {log.type === 'AWAY_SESSION_END' ? (
-                          <>Away for {formatDuration(log.durationMs)}</>
-                        ) : log.type === 'ADMIN_ACTION' ? (
-                          <span className="text-purple-400">{log.details}</span>
-                        ) : (
-                          <span className="text-orange-400">Away Started</span>
-                        )}
-                      </div>
-                      {log.severity && log.severity !== 'NONE' && (
-                        <div className={`text-[10px] font-mono mt-1 ${log.severity === 'CRITICAL' ? 'text-red-400' : 'text-slate-500'}`}>
-                          Severity: {log.severity}
-                        </div>
+                    <td className="px-6 py-4 font-medium flex items-center gap-2">
+                      {p.userId?.username || p.userId?.name || 'Unknown'}
+                      {p.currentlyAway && (
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
                       )}
-                    </div>
-                  ))}
-                  {logs.length === 0 && <div className="text-sm text-slate-500">No activity recorded.</div>}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-500 text-sm">
-              Select a participant to view details.
-            </div>
-          )}
-        </div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">{p.awaySessionCount}</td>
+                    <td className="px-6 py-4 text-slate-300">{formatDuration(p.totalAwayTimeMs)}</td>
+                    <td className="px-6 py-4 text-slate-300">{formatDuration(p.longestAwaySessionMs)}</td>
+                    <td className="px-6 py-4"><StatusBadge status={p.currentStatus} /></td>
+                  </tr>
+                  
+                  {isSelected && (
+                    <tr>
+                      <td colSpan={5} className="p-0 border-b-4 border-purple-500">
+                        <div className="bg-[#11132f] p-6 shadow-inner animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="flex flex-col xl:flex-row gap-8">
+                            
+                            {/* Left Side: Stats & Actions */}
+                            <div className="xl:w-1/3 flex flex-col gap-6">
+                              <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                  <h3 className="text-lg font-bold text-white">{p.userId?.username} Detailed Review</h3>
+                                  {p.currentlyAway && (
+                                    <div className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded text-[10px] uppercase font-bold animate-pulse">
+                                      🚨 Currently Away
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div className="bg-[#151838] p-3 rounded border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase mb-1">Away Sessions</div>
+                                    <div className="font-bold text-white text-lg">{p.awaySessionCount}</div>
+                                  </div>
+                                  <div className="bg-[#151838] p-3 rounded border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase mb-1">Total Away</div>
+                                    <div className="font-bold text-white text-lg">{formatDuration(p.totalAwayTimeMs)}</div>
+                                  </div>
+                                  <div className="bg-[#151838] p-3 rounded border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase mb-1">Longest Session</div>
+                                    <div className="font-bold text-white text-lg">{formatDuration(p.longestAwaySessionMs)}</div>
+                                  </div>
+                                  <div className="bg-[#151838] p-3 rounded border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase mb-1">Fullscreen Exits</div>
+                                    <div className="font-bold text-white text-lg">{p.fullscreenExitCount}</div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800 flex flex-col gap-3">
+                                <h4 className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-1">Admin Actions</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  <button 
+                                    onClick={() => handleAction('MARK_REVIEWED')}
+                                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 font-medium rounded text-sm transition-colors text-white whitespace-nowrap"
+                                  >
+                                    ✓ Mark Reviewed
+                                  </button>
+                                  {p.isSubmissionsLocked ? (
+                                    <button 
+                                      onClick={() => handleAction('RELEASE_SUBMISSIONS')}
+                                      className="flex-1 py-2 px-3 bg-slate-600 hover:bg-slate-700 font-medium rounded text-sm transition-colors text-white whitespace-nowrap"
+                                    >
+                                      🔓 Release Submissions
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => {
+                                        const reason = prompt('Reason for locking submissions:');
+                                        if (reason !== null) handleAction('LOCK_SUBMISSIONS', reason);
+                                      }}
+                                      className="flex-1 py-2 px-3 border border-red-500/50 text-red-400 hover:bg-red-500/10 font-medium rounded text-sm transition-colors whitespace-nowrap"
+                                    >
+                                      🔒 Lock Submissions
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="mt-2 border-t border-slate-800 pt-3">
+                                  {p.userId?.teamId?.status === 'DISQUALIFIED' ? (
+                                    <button 
+                                      onClick={() => {
+                                        if (window.confirm('Are you sure you want to RE-ADMIT this team?')) {
+                                          handleAction('READMIT');
+                                        }
+                                      }}
+                                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded text-sm transition-colors"
+                                    >
+                                      Re-admit Team
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => {
+                                        if (window.confirm('Are you sure you want to DISQUALIFY this team? They will be permanently locked out of the contest.')) {
+                                          handleAction('DISQUALIFY');
+                                        }
+                                      }}
+                                      className="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded text-sm transition-colors shadow-lg shadow-red-900/20"
+                                    >
+                                      ⚠ Disqualify Team
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Right Side: Activity Logs */}
+                            <div className="xl:w-2/3 flex flex-col bg-[#0d0e24] border border-[#1e224d] rounded-lg overflow-hidden">
+                              <div className="bg-[#151838] px-4 py-3 border-b border-[#1e224d] flex justify-between items-center">
+                                <h4 className="text-sm font-bold text-slate-300">Detailed Activity Logs</h4>
+                                <span className="text-xs text-slate-500">{logs.length} events recorded</span>
+                              </div>
+                              <div className="p-4 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar bg-[#0d0e24]">
+                                {isLogsLoading ? (
+                                  <div className="flex items-center justify-center h-full text-slate-500">Loading activity...</div>
+                                ) : logs.length > 0 ? (
+                                  <div className="space-y-3">
+                                    {logs.map((log) => (
+                                      <div key={log._id} className="flex gap-4 p-3 bg-[#151838] rounded-lg border border-slate-800 hover:border-slate-600 transition-colors">
+                                        <div className="flex-shrink-0 w-24 text-xs text-slate-400 font-mono pt-1">
+                                          {new Date(log.timestamp).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            {log.type === 'AWAY_SESSION_END' ? (
+                                              <span className="text-emerald-400 font-medium text-sm">Returned to IDE</span>
+                                            ) : log.type === 'AWAY_SESSION_START' ? (
+                                              <span className="text-orange-400 font-medium text-sm">Left IDE</span>
+                                            ) : log.type === 'ADMIN_ACTION' ? (
+                                              <span className="text-purple-400 font-medium text-sm">Admin Action</span>
+                                            ) : (
+                                              <span className="text-slate-300 font-medium text-sm">{log.type}</span>
+                                            )}
+                                            
+                                            {log.type === 'AWAY_SESSION_END' && log.durationMs > 0 && (
+                                              <span className="text-xs text-slate-500 bg-slate-900 px-2 py-0.5 rounded">
+                                                Away for {formatDuration(log.durationMs)}
+                                              </span>
+                                            )}
+                                            {log.severity && log.severity !== 'NONE' && (
+                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                                {log.severity}
+                                              </span>
+                                            )}
+                                          </div>
+                                          
+                                          {(log.reasons?.length > 0 || log.details) && (
+                                            <div className="text-sm text-slate-300">
+                                              {log.details ? (
+                                                <span className="italic">{log.details}</span>
+                                              ) : (
+                                                <div className="flex flex-wrap gap-2 mt-1">
+                                                  {log.reasons.map((r: string, idx: number) => {
+                                                    const map: Record<string, string> = {
+                                                      'TAB_HIDDEN': 'Switched Tabs',
+                                                      'WINDOW_BLUR': 'Clicked Outside',
+                                                      'FULLSCREEN_EXIT': 'Exited Fullscreen',
+                                                    };
+                                                    return (
+                                                      <span key={idx} className="inline-flex items-center gap-1.5 text-xs text-slate-300 bg-[#1e224d] px-2 py-1 rounded">
+                                                        <span className="text-purple-400">🔍</span> {map[r] || r}
+                                                      </span>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
+                                    <svg className="w-8 h-8 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span>No activity recorded.</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {(data.participants || []).length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">No participants tracked yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </AdminLayout>
   );

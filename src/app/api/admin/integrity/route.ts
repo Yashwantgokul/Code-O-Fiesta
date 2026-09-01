@@ -10,11 +10,34 @@ export async function GET(request: Request) {
     await connectDB();
     
     const summaries = await ParticipantIntegrity.find()
-      .populate('userId', 'username name email')
+      .populate({
+        path: 'userId',
+        select: 'username name email role teamId',
+        match: { role: { $ne: 'ADMIN' } },
+        populate: {
+          path: 'teamId',
+          select: 'status'
+        }
+      })
       .sort({ integrityScore: -1 })
       .lean();
       
-    return NextResponse.json({ participants: summaries });
+    // Filter out summaries where userId is null (because they were admins)
+    const participants = summaries.filter(s => s.userId != null);
+    
+    const totalTabSwitches = participants.reduce((sum, p) => sum + (p.awaySessionCount || 0), 0);
+    const activeTeams = new Set();
+    participants.forEach(p => {
+      if ((p.userId as any)?.teamId) activeTeams.add((p.userId as any).teamId.toString());
+    });
+      
+    return NextResponse.json({ 
+      participants,
+      stats: {
+        totalTabSwitches,
+        activeTeams: activeTeams.size
+      }
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -62,14 +85,32 @@ export async function POST(request: Request) {
       });
     } else if (action === 'RELEASE_SUBMISSIONS') {
       participant.isSubmissionsLocked = false;
+      participant.awaySessionCount = 0; // Reset so they don't immediately get locked again
       await participant.save();
       
       await IntegrityLog.create({
         userId,
         type: 'ADMIN_ACTION',
-        details: 'Submissions Released',
+        details: 'Submissions Released (Tab Switches Reset)',
         severity: 'NONE'
       });
+    } else if (action === 'DISQUALIFY' || action === 'READMIT') {
+      const User = (await import('@/models/User')).default;
+      const Team = (await import('@/models/Team')).default;
+      
+      const user = await User.findById(userId);
+      if (user && user.teamId) {
+        await Team.findByIdAndUpdate(user.teamId, {
+          status: action === 'DISQUALIFY' ? 'DISQUALIFIED' : 'ACTIVE'
+        });
+        
+        await IntegrityLog.create({
+          userId,
+          type: 'ADMIN_ACTION',
+          details: action === 'DISQUALIFY' ? 'Team Disqualified' : 'Team Re-admitted',
+          severity: action === 'DISQUALIFY' ? 'CRITICAL' : 'NONE'
+        });
+      }
     }
     
     return NextResponse.json({ success: true, participant });

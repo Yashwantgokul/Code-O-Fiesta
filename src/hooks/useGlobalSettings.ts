@@ -10,6 +10,7 @@ export function useGlobalSettings() {
   return {
     strictMode: data?.strictMode ?? true, // Default to true for safety
     copyPasteBlocker: data?.copyPasteBlocker ?? false,
+    maxTabSwitches: data?.maxTabSwitches ?? 5,
     isLoading: !error && !data,
     isError: !!error,
     mutate,
