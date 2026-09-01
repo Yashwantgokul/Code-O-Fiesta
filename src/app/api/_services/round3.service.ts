@@ -5,7 +5,7 @@ import Problem from '@/models/Problem';
 import Round from '@/models/Round';
 import TeamRound from '@/models/TeamRound';
 import { RoundStatus, TeamRoundStatus } from '@/constants/event';
-import { computeProportionalPoints } from '@/app/api/_services/scoring.service';
+import { computeProportionalPoints, maxTestCasesForProblem, POINTS_PER_TEST_CASE } from '@/app/api/_services/scoring.service';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ROUND_NUMBER = 3;
@@ -29,6 +29,10 @@ export interface Round3ProblemStatus {
   shortAndSweetPassed: boolean;
   oneShotWonderPassed: boolean;
   baseScore: number;
+  baseTestsPassed: number;
+  baseTotalTests: number;
+  maxTestCases: number;
+  maxScore: number;
   bonusScore: number;
   totalScore: number;
   submissionCount: number;
@@ -57,6 +61,8 @@ export interface Round3ConstraintResult {
   shortAndSweetPassed: boolean;
   oneShotWonderPassed: boolean;
   baseScore: number;
+  baseTestsPassed: number;
+  baseTotalTests: number;
   bonusScore: number;
   totalScore: number;
   pointsEarned: number;
@@ -163,10 +169,13 @@ export async function getRound3StateForTeam(
     const problemDocs = await Problem.find({ _id: { $in: problemIds } }).lean();
     const problemMap = new Map(problemDocs.map((p: any) => [p._id.toString(), p]));
 
+    const maxBonusPoints = roundConfig.ouroborosPoints + roundConfig.shortAndSweetPoints + roundConfig.oneShotWonderPoints;
+
     problems = assignedProblems.map((entry: any) => {
       const doc = problemMap.get(entry.problemId?.toString()) as any;
       const solved = entry.baseSolvePassed;
       const inProgress = entry.submissionCount > 0 && !solved;
+      const maxTestCases = maxTestCasesForProblem(doc);
       return {
         problemId: entry.problemId?.toString() ?? '',
         title: doc?.title ?? 'Unknown Problem',
@@ -177,6 +186,10 @@ export async function getRound3StateForTeam(
         shortAndSweetPassed: entry.shortAndSweetPassed ?? false,
         oneShotWonderPassed: entry.oneShotWonderPassed ?? false,
         baseScore: entry.baseScore ?? 0,
+        baseTestsPassed: entry.baseTestsPassed ?? 0,
+        baseTotalTests: entry.baseTotalTests ?? 0,
+        maxTestCases,
+        maxScore: maxTestCases * POINTS_PER_TEST_CASE + maxBonusPoints,
         bonusScore: entry.bonusScore ?? 0,
         totalScore: entry.totalScore ?? 0,
         submissionCount: entry.submissionCount ?? 0,
@@ -199,8 +212,8 @@ export async function getRound3StateForTeam(
  * Compute Round 3 constraint bonuses from AST + submission count.
  * Pure function — no DB writes here; the caller persists results.
  *
- * The base score is testcase-proportional (same formula as every other
- * round): a partial pass earns a partial share of basePoints. The Ouroboros
+ * The base score is testcase-based (same fixed rate as every other round):
+ * each passing test case is worth POINTS_PER_TEST_CASE points. The Ouroboros
  * / Short & Sweet / One-Shot-Wonder bonuses still require every test case to
  * pass — they're rewards for a fully correct solution, not partial credit.
  */
@@ -210,13 +223,12 @@ export function computeRound3Result(
   astResult: any,
   isFirstAttempt: boolean,
   maxLines: number,
-  basePoints: number,
   ouroborosPoints: number,
   shortAndSweetPoints: number,
   oneShotWonderPoints: number,
 ): Round3ConstraintResult {
   const isFullySolved = totalTests > 0 && testsPassed === totalTests;
-  const baseScore = computeProportionalPoints(testsPassed, totalTests, basePoints);
+  const baseScore = computeProportionalPoints(testsPassed, totalTests);
 
   if (!isFullySolved) {
     return {
@@ -225,6 +237,8 @@ export function computeRound3Result(
       shortAndSweetPassed: false,
       oneShotWonderPassed: false,
       baseScore,
+      baseTestsPassed: testsPassed,
+      baseTotalTests: totalTests,
       bonusScore: 0,
       totalScore: baseScore,
       pointsEarned: baseScore,
@@ -295,6 +309,8 @@ export function computeRound3Result(
     shortAndSweetPassed,
     oneShotWonderPassed,
     baseScore,
+    baseTestsPassed: testsPassed,
+    baseTotalTests: totalTests,
     bonusScore,
     totalScore,
     pointsEarned: totalScore,
@@ -324,7 +340,6 @@ export async function persistRound3ProblemResult(
   problemId: string,
   result: Round3ConstraintResult,
   points: {
-    basePoints: number;
     ouroborosPoints: number;
     shortAndSweetPoints: number;
     oneShotWonderPoints: number;
@@ -345,14 +360,19 @@ export async function persistRound3ProblemResult(
   const existing = problems[idx] as any;
   const previousBaseScore = existing.baseScore ?? 0;
   const newBaseScore = Math.max(previousBaseScore, result.baseScore);
+  const improved = newBaseScore > previousBaseScore;
+  const baseTestsPassed = improved ? result.baseTestsPassed : (existing.baseTestsPassed ?? 0);
+  const baseTotalTests = improved ? result.baseTotalTests : (existing.baseTotalTests ?? 0);
 
   if (!result.baseSolvePassed) {
     // Partial credit only: bump baseScore if this submission did better than
     // any before it, but never touch bonuses, the lock, or solved status.
     const existingBonusScore = existing.bonusScore ?? 0;
-    if (newBaseScore > previousBaseScore) {
+    if (improved) {
       const totalScore = newBaseScore + existingBonusScore;
       teamRound.set(`round3.problems.${idx}.baseScore`, newBaseScore);
+      teamRound.set(`round3.problems.${idx}.baseTestsPassed`, baseTestsPassed);
+      teamRound.set(`round3.problems.${idx}.baseTotalTests`, baseTotalTests);
       teamRound.set(`round3.problems.${idx}.totalScore`, totalScore);
 
       const updatedProblems = teamRound.round3?.problems ?? [];
@@ -371,6 +391,8 @@ export async function persistRound3ProblemResult(
       shortAndSweetPassed: existing.shortAndSweetPassed === true,
       oneShotWonderPassed: existing.oneShotWonderPassed === true,
       baseScore: newBaseScore,
+      baseTestsPassed,
+      baseTotalTests,
       bonusScore: existingBonusScore,
       totalScore: newBaseScore + existingBonusScore,
       pointsEarned: newBaseScore + existingBonusScore,
@@ -415,6 +437,8 @@ export async function persistRound3ProblemResult(
     shortAndSweetPassed,
     oneShotWonderPassed,
     baseScore: newBaseScore,
+    baseTestsPassed,
+    baseTotalTests,
     bonusScore,
     totalScore,
     pointsEarned: totalScore,
@@ -427,6 +451,8 @@ export async function persistRound3ProblemResult(
   teamRound.set(`round3.problems.${idx}.oneShotWonderPassed`, oneShotWonderPassed);
   teamRound.set(`round3.problems.${idx}.oneShotWonderLocked`, true);
   teamRound.set(`round3.problems.${idx}.baseScore`, newBaseScore);
+  teamRound.set(`round3.problems.${idx}.baseTestsPassed`, baseTestsPassed);
+  teamRound.set(`round3.problems.${idx}.baseTotalTests`, baseTotalTests);
   teamRound.set(`round3.problems.${idx}.bonusScore`, bonusScore);
   teamRound.set(`round3.problems.${idx}.totalScore`, totalScore);
   teamRound.set(`round3.problems.${idx}.completedAt`, existing.completedAt ?? new Date());

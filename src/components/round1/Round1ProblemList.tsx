@@ -12,6 +12,11 @@ export interface Round1Problem {
   maxScore: number;
   status: ProblemStatus;
   solvedAt?: string;
+  // Backend-authoritative testcase-based score earned so far for this
+  // problem (best submission), and the testcase count behind it.
+  earnedScore?: number;
+  testsPassed?: number;
+  totalTests?: number;
 }
 
 interface Round1ProblemListProps {
@@ -174,7 +179,14 @@ export default function Round1ProblemList({
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span>Max {problem.maxScore} pts</span>
+                  <span className={problem.earnedScore ? 'text-white font-semibold' : ''}>
+                    {problem.earnedScore ?? 0} / {problem.maxScore} pts
+                  </span>
+                  {!!problem.totalTests && (
+                    <span>
+                      {problem.testsPassed ?? 0} / {problem.totalTests} test cases passed
+                    </span>
+                  )}
                   {problem.solvedAt && (
                     <span className="text-emerald-500/80">
                       Solved {problem.solvedAt}

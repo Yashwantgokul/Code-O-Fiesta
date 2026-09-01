@@ -12,8 +12,6 @@ export default function ScoreBreakdown({ submitResult }: ScoreBreakdownProps) {
 
   if (!isAccepted) return null;
 
-  const baseSolvePoints = 50;
-
   const ouroborosViolated = violations.some(v =>
     v.constraintId === 'ouroboros' ||
     v.constraintId === 'no-loops' ||
@@ -37,15 +35,18 @@ export default function ScoreBreakdown({ submitResult }: ScoreBreakdownProps) {
   );
   const oneShotPoints = oneShotViolated ? 0 : 40;
 
-  const totalPoints = baseSolvePoints + ouroborosPoints + shortPoints + oneShotPoints;
+  // Total and base score come from the backend's authoritative pointsEarned
+  // (10 pts / test case) — base points vary with the problem's test count.
+  const totalPoints = submitResult.pointsEarned ?? 0;
+  const baseSolvePoints = Math.max(0, totalPoints - ouroborosPoints - shortPoints - oneShotPoints);
 
   return (
     <div className="flex flex-col gap-2 p-3 bg-[#080814] border border-cyan-500/20 rounded-lg max-w-sm mt-3 font-mono text-[11px]">
       <div className="text-cyan-400 font-bold uppercase tracking-wider text-[10px] mb-1">
         Scoring Math (Crucible Round)
       </div>
-      <div className="flex items-center gap-1.5 text-slate-300">
-        <span>50 (Base)</span>
+      <div className="flex items-center gap-1.5 text-slate-300 flex-wrap">
+        <span>{baseSolvePoints} (Base: {submitResult.testsPassed}/{submitResult.totalTests} tests)</span>
         <span>+</span>
         <span className={ouroborosViolated ? 'line-through text-red-500/60' : 'text-green-400'}>30 (Ouroboros)</span>
         <span>+</span>

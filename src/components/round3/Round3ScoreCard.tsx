@@ -12,8 +12,6 @@ export default function Round3ScoreCard({ submitResult }: Round3ScoreCardProps) 
 
   if (!isAccepted) return null;
 
-  const baseSolvePoints = 50;
-
   const ouroborosViolated = violations.some(v =>
     v.constraintId === 'ouroboros' ||
     v.constraintId === 'no-loops' ||
@@ -37,18 +35,24 @@ export default function Round3ScoreCard({ submitResult }: Round3ScoreCardProps) 
   );
   const oneShotPoints = oneShotViolated ? 0 : 40;
 
-  const totalPoints = baseSolvePoints + ouroborosPoints + shortPoints + oneShotPoints;
+  // Total and base score are read from the backend's authoritative
+  // pointsEarned (10 pts / test case) rather than a hardcoded flat value —
+  // base points vary with how many test cases the problem has.
+  const totalPoints = submitResult.pointsEarned ?? 0;
+  const baseSolvePoints = Math.max(0, totalPoints - ouroborosPoints - shortPoints - oneShotPoints);
+  const maxBasePoints = (submitResult.totalTests ?? 0) * 10;
+  const maxTotalPoints = maxBasePoints + 30 + 20 + 40;
 
   return (
     <div className="p-5 rounded-xl border border-purple-500/30 bg-purple-950/10 shadow-[0_0_20px_rgba(139,92,246,0.2)] max-w-md w-full">
       <h3 className="text-sm font-mono font-bold text-purple-300 uppercase tracking-wider mb-4 border-b border-purple-500/20 pb-2 flex justify-between">
         <span>Crucible Scorecard</span>
-        <span className="text-green-400 font-extrabold">{totalPoints} / 140 PTS</span>
+        <span className="text-green-400 font-extrabold">{totalPoints} / {maxTotalPoints} PTS</span>
       </h3>
-      
+
       <div className="flex flex-col gap-2 font-mono text-xs">
         <div className="flex justify-between items-center py-1">
-          <span className="text-slate-400">Base Problem Solve:</span>
+          <span className="text-slate-400">Base Problem Solve ({submitResult.testsPassed}/{submitResult.totalTests} tests x 10 pts):</span>
           <span className="text-green-400 font-bold">+{baseSolvePoints} PTS</span>
         </div>
 

@@ -114,7 +114,7 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
               </div>
             ) : (
               <div className="z-10 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20 text-xs font-mono font-bold text-green-400">
-                +{pointsEarned || 50} PTS EARNED
+                +{pointsEarned ?? 0} PTS EARNED
               </div>
             )}
           </div>
