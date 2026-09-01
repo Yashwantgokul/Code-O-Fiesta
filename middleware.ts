@@ -10,33 +10,18 @@ if (!secretKey) {
 
 const secret = new TextEncoder().encode(secretKey);
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = [
-  '/login',
-  '/admin/login',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/',
-];
+// Only these exact page paths are reachable without a session. Every other
+// page defaults to requiring authentication — a new route is protected
+// automatically instead of relying on someone remembering to allowlist it.
+const PUBLIC_PAGE_ROUTES = ['/', '/login', '/admin/login'];
 
-// API routes handle their own authentication via requireAuthentication
-const API_ROUTES = '/api';
+// Auth endpoints must stay reachable before a session cookie exists.
+const PUBLIC_API_PREFIX = '/api/auth';
 
-// Routes that require authentication
-const PROTECTED_ROUTES = [
-  '/dashboard',
-  '/admin',
-  '/round-1',
-  '/round-2',
-  '/round-3',
-  '/leaderboard',
-  '/results',
-];
-
-// Routes that require admin role
-const ADMIN_ROUTES = [
-  '/admin',
-];
+// Routes that require an ADMIN session specifically (matched by prefix).
+// The leaderboard is admin-only — participants get their own rank via
+// /api/results/me, never the full standings.
+const ADMIN_ONLY_ROUTES = ['/admin', '/leaderboard', '/ui-preview'];
 
 async function verifyToken(token: string) {
   try {
@@ -50,50 +35,40 @@ async function verifyToken(token: string) {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Allow public routes
-  if (PUBLIC_ROUTES.some(route => pathname === route)) {
+  // Auth endpoints (login/logout/me) must work pre-session.
+  if (pathname.startsWith(PUBLIC_API_PREFIX)) {
     return NextResponse.next();
   }
 
-  // Allow API routes that start with /api/auth
-  if (pathname.startsWith('/api/auth')) {
-    return NextResponse.next();
-  }
-
-  // Allow all API routes (they handle their own authentication)
+  // Every other API route enforces its own auth via requireAuthentication /
+  // requireAdmin at the route level.
   if (pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 
-  // For protected routes, check authentication
-  if (PROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
-    const sessionCookie = request.cookies.get('session')?.value;
-
-    if (!sessionCookie) {
-      // No session cookie, redirect to login
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    const session = await verifyToken(sessionCookie);
-
-    if (!session) {
-      // Invalid token, redirect to login
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    // Check admin routes
-    if (ADMIN_ROUTES.some(route => pathname.startsWith(route))) {
-      if (session.role !== 'ADMIN') {
-        // Not admin, redirect to dashboard
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
-    }
-
-    // Session is valid, allow access
+  // A small, explicit set of public pages.
+  if (PUBLIC_PAGE_ROUTES.includes(pathname)) {
     return NextResponse.next();
   }
 
-  // Allow all other routes
+  // Everything else requires a valid session — default-deny.
+  const isAdminArea = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
+  const loginPath = isAdminArea ? '/admin/login' : '/login';
+
+  const sessionCookie = request.cookies.get('session')?.value;
+  if (!sessionCookie) {
+    return NextResponse.redirect(new URL(loginPath, request.url));
+  }
+
+  const session = await verifyToken(sessionCookie);
+  if (!session) {
+    return NextResponse.redirect(new URL(loginPath, request.url));
+  }
+
+  if (isAdminArea && session.role !== 'ADMIN') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return NextResponse.next();
 }
 

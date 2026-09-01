@@ -30,30 +30,24 @@ function VictoryPageContent() {
 
   const [teamName, setTeamName] = useState('');
   const [memberNames, setMemberNames] = useState<string[]>([]);
-  const [rank, setRank] = useState<number | string>('—');
   const [loadingTeamInfo, setLoadingTeamInfo] = useState(true);
   const [showExitModal, setShowExitModal] = useState(false);
 
+  // Team name/members come from /api/team/me (own team only). Rank comes from
+  // useTeamResults()/api/results/me, which derives it server-side — a
+  // participant is never handed the full standings list; that view is
+  // admin-only (see /leaderboard).
   useEffect(() => {
     let active = true;
 
     async function loadTeamInfo() {
       try {
-        const [teamRes, leaderboardRes] = await Promise.all([
-          apiCall('/api/team/me').catch(() => null),
-          apiCall('/api/leaderboard').catch(() => []),
-        ]);
-
+        const teamRes = await apiCall('/api/team/me').catch(() => null);
         if (!active) return;
 
         if (teamRes?.team) {
           setTeamName(teamRes.team.name);
           setMemberNames((teamRes.team.members || []).map((m: any) => m.name).filter(Boolean));
-        }
-
-        if (Array.isArray(leaderboardRes) && user?.teamId) {
-          const entry = leaderboardRes.find((t: any) => t.teamId === user.teamId);
-          if (entry?.rank) setRank(entry.rank);
         }
       } finally {
         if (active) setLoadingTeamInfo(false);
@@ -64,8 +58,9 @@ function VictoryPageContent() {
     return () => {
       active = false;
     };
-  }, [user?.teamId]);
+  }, []);
 
+  const rank: number | string = results?.rank ?? '—';
   const loading = resultsLoading || loadingTeamInfo;
 
   if (loading) {

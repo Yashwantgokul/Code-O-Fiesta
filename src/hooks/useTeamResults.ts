@@ -21,6 +21,7 @@ export interface TeamRoundResult {
 export interface TeamResults {
   teamName: string;
   totalScore: number;
+  rank: number | null;
   rounds: TeamRoundResult[];
   status: string;
 }
