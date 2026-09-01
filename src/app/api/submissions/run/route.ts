@@ -2,40 +2,83 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Problem from '@/models/Problem';
 import Round from '@/models/Round';
+import mongoose from 'mongoose';
 import { RoundStatus } from '@/constants/event';
 import { executeTestCases, calculateVerdict, ExecutionMode } from '../../_services/judge.service';
 import { roundService } from '@/app/api/_services/round.service';
-import { getAuthenticatedUser } from '../../_lib/authorization';
+import { requireAuthentication } from '../../_lib/authorization';
 
-declare global {
-  var runCooldownCache: Map<string, number> | undefined;
+const COOLDOWN_SECONDS = 5;
+
+/**
+ * MongoDB-backed rate limit record. A TTL index on `expiresAt` removes the
+ * document automatically once the cooldown window lapses. This works across
+ * multiple Next.js workers and never leaks memory.
+ */
+function getRunRateLimitModel() {
+  if (mongoose.models.RunRateLimit) {
+    return mongoose.models.RunRateLimit;
+  }
+  const schema = new mongoose.Schema(
+    {
+      _id: { type: String }, // userId or IP
+      expiresAt: { type: Date, required: true },
+    },
+    { collection: 'run_rate_limits' },
+  );
+  schema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  return mongoose.model('RunRateLimit', schema);
+}
+
+async function isRateLimited(key: string): Promise<boolean> {
+  const RunRateLimit = getRunRateLimitModel();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + COOLDOWN_SECONDS * 1000);
+
+  try {
+    const doc = await RunRateLimit.findById(key);
+    
+    if (doc) {
+      if (doc.expiresAt > now) {
+        return true; // Rate limited
+      }
+      
+      // Logically expired but TTL hasn't cleaned it up yet. Update it.
+      await RunRateLimit.updateOne({ _id: key }, { $set: { expiresAt } });
+      return false; // Allowed
+    }
+    
+    // Doesn't exist, insert new
+    await RunRateLimit.create({ _id: key, expiresAt });
+    return false; // Allowed
+  } catch (err: any) {
+    if (err.code === 11000) {
+      return true; // Concurrent insert, treat as rate limited
+    }
+    throw err;
+  }
 }
 
 export async function POST(request: Request) {
   const t0 = performance.now();
   
   try {
-    // ── Rate Limiting ──────────────────────────────────────────────────────
-    const session = await getAuthenticatedUser(request);
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimitKey = session ? session.userId : ip;
+    // ── Authentication ─────────────────────────────────────────────────────
+    // requireAuthentication throws UnauthorizedError (401) if no valid session
+    // exists, preventing anonymous code execution on the Judge0 cluster.
+    const session = await requireAuthentication(request);
+    // ───────────────────────────────────────────────────────────────────────
 
-    if (!globalThis.runCooldownCache) {
-      globalThis.runCooldownCache = new Map();
-    }
-    const lastRunTime = globalThis.runCooldownCache.get(rateLimitKey) || 0;
-    const now = Date.now();
-    const diffSeconds = (now - lastRunTime) / 1000;
-    const COOLDOWN_SECONDS = 5;
-
-    if (diffSeconds < COOLDOWN_SECONDS) {
+    // ── Rate Limiting (MongoDB TTL — works across workers, no memory leak) ─
+    await connectDB();
+    const rateLimitKey = session.userId;
+    const limited = await isRateLimited(rateLimitKey);
+    if (limited) {
       return NextResponse.json(
-        { error: `Please wait ${Math.ceil(COOLDOWN_SECONDS - diffSeconds)} seconds before running again.` },
+        { error: `Please wait ${COOLDOWN_SECONDS} seconds before running again.` },
         { status: 429 }
       );
     }
-    
-    globalThis.runCooldownCache.set(rateLimitKey, now);
     // ───────────────────────────────────────────────────────────────────────
 
     const body = await request.json();
