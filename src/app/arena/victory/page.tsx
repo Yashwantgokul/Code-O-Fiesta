@@ -6,88 +6,67 @@ import ParticipantLayout from '@/components/layout/ParticipantLayout';
 import LoadingState from '@/components/common/LoadingState';
 import VictoryHero from '@/components/victory/VictoryHero';
 import VictoryScoreStrip from '@/components/victory/VictoryScoreStrip';
-import VictoryTeamCard from '@/components/victory/VictoryTeamCard';
-import VictoryRoundBreakdown from '@/components/victory/VictoryRoundBreakdown';
+import VictoryTeamCard, { RoundSummary } from '@/components/victory/VictoryTeamCard';
+import VictoryRoundBreakdown, { DetailedRound } from '@/components/victory/VictoryRoundBreakdown';
 import VictoryExitModal from '@/components/victory/VictoryExitModal';
-import { authService } from '@/services/auth';
-import { leaderboardService } from '@/services/leaderboard';
+import useAuth from '@/hooks/useAuth';
+import { useTeamResults } from '@/hooks/useTeamResults';
+import { apiCall } from '@/lib/api';
 
-export interface VictoryPageData {
-  teamId: string;
-  teamName: string;
-  memberNames: string[];
-  finalScore: number;
-  teamRank: number | string;
-  roundsDone: string;
-  timeTaken: string;
-}
-
-const DEFAULT_VICTORY_DATA: VictoryPageData = {
-  teamId: 'TEAM_014',
-  teamName: 'TEAM_014',
-  memberNames: ['Member 01', 'Member 02'],
-  finalScore: 120,
-  teamRank: 4,
-  roundsDone: '3 / 3',
-  timeTaken: '1h 17m',
+const ROUND_NAMES: Record<number, string> = {
+  1: 'Round 1: Path of Fate',
+  2: 'Round 2: Blind Relay',
+  3: 'Round 3: Constraint Crucible',
 };
 
+// Max attainable score per round — 3 problems x 50pts for Rounds 1-2, and
+// Round 3's base + bonus formula (50 + 30 + 20 + 40) x 3 problems, matching
+// the same constants already shown on the Round 3 dashboard.
+const ROUND_MAX_SCORES: Record<number, number> = { 1: 150, 2: 150, 3: 420 };
+
 function VictoryPageContent() {
-  const [data, setData] = useState<VictoryPageData>(DEFAULT_VICTORY_DATA);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { results, totalScore, loading: resultsLoading } = useTeamResults();
+
+  const [teamName, setTeamName] = useState('');
+  const [memberNames, setMemberNames] = useState<string[]>([]);
+  const [rank, setRank] = useState<number | string>('—');
+  const [loadingTeamInfo, setLoadingTeamInfo] = useState(true);
   const [showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
-    const fetchVictoryStats = async () => {
+    let active = true;
+
+    async function loadTeamInfo() {
       try {
-        setLoading(true);
-        // Fetch current auth & team data
-        const authRes = await authService.getMe();
-        let teamId = 'TEAM_014';
-        let teamName = 'TEAM_014';
-        let members: string[] = ['Member 01', 'Member 02'];
+        const [teamRes, leaderboardRes] = await Promise.all([
+          apiCall('/api/team/me').catch(() => null),
+          apiCall('/api/leaderboard').catch(() => []),
+        ]);
 
-        if (authRes.authenticated && authRes.team) {
-          teamId = authRes.team.id || authRes.team.name || 'TEAM_014';
-          teamName = authRes.team.name || authRes.team.id || 'TEAM_014';
-          if (authRes.team.members && authRes.team.members.length > 0) {
-            members = (authRes.team.members as any[]).map((m: any) =>
-              typeof m === 'string' ? m : m.name || m.email || 'Member'
-            );
-          }
+        if (!active) return;
+
+        if (teamRes?.team) {
+          setTeamName(teamRes.team.name);
+          setMemberNames((teamRes.team.members || []).map((m: any) => m.name).filter(Boolean));
         }
 
-        // Fetch score & ranking
-        let score = 120;
-        let rank: number | string = 4;
-        try {
-          const resultsRes = await leaderboardService.getResults();
-          if (resultsRes && resultsRes.results) {
-            score = resultsRes.results.grandTotalScore || score;
-            rank = resultsRes.results.rank || rank;
-          }
-        } catch (e) {
-          // Graceful fallback to default demo telemetry
+        if (Array.isArray(leaderboardRes) && user?.teamId) {
+          const entry = leaderboardRes.find((t: any) => t.teamId === user.teamId);
+          if (entry?.rank) setRank(entry.rank);
         }
-
-        setData({
-          teamId,
-          teamName,
-          memberNames: members,
-          finalScore: score,
-          teamRank: rank,
-          roundsDone: '3 / 3',
-          timeTaken: '1h 17m',
-        });
-      } catch (err) {
-        console.warn('Using default victory telemetry data:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoadingTeamInfo(false);
       }
-    };
+    }
 
-    fetchVictoryStats();
-  }, []);
+    loadTeamInfo();
+    return () => {
+      active = false;
+    };
+  }, [user?.teamId]);
+
+  const loading = resultsLoading || loadingTeamInfo;
 
   if (loading) {
     return (
@@ -97,31 +76,57 @@ function VictoryPageContent() {
     );
   }
 
+  const rounds = results?.rounds ?? [];
+  const roundsCompletedCount = rounds.filter((r) => r.status === 'COMPLETED').length;
+  const roundsDone = `${roundsCompletedCount} / ${rounds.length || 3}`;
+
+  const roundSummaries: RoundSummary[] = rounds.map((r) => ({
+    id: String(r.roundNumber),
+    name: ROUND_NAMES[r.roundNumber] || `Round ${r.roundNumber}`,
+    score: r.score,
+    maxScore: ROUND_MAX_SCORES[r.roundNumber] || Math.max(r.score, 1),
+    completed: r.status === 'COMPLETED',
+  }));
+
+  const detailedRounds: DetailedRound[] = roundSummaries.map((r) => ({
+    id: `round-${r.id}`,
+    name: r.name.toUpperCase(),
+    score: r.score,
+    maxScore: r.maxScore,
+    completed: r.completed,
+    // Per-problem detail isn't tracked by the results API — the accordion
+    // shows a graceful "not available" message instead of fabricated rows.
+    problems: [],
+  }));
+
+  const displayTeamName = teamName || results?.teamName || user?.name || 'CHAMPIONS';
+
   return (
     <ParticipantLayout>
       <div className="flex flex-col gap-8 pb-12 max-w-5xl mx-auto w-full">
         {/* 1. Hero Section */}
-        <VictoryHero teamName={data.teamName} />
+        <VictoryHero teamName={displayTeamName} />
 
         {/* 2. Score Summary Strip */}
         <VictoryScoreStrip
-          finalScore={data.finalScore}
-          teamRank={data.teamRank}
-          roundsDone={data.roundsDone}
-          timeTaken={data.timeTaken}
+          finalScore={totalScore}
+          teamRank={rank}
+          roundsDone={roundsDone}
+          timeTaken="—"
         />
 
         {/* 3. Photo / Certificate Section */}
         <VictoryTeamCard
-          teamId={data.teamName}
-          memberNames={data.memberNames}
-          finalScore={data.finalScore}
-          teamRank={data.teamRank}
-          roundsDone={data.roundsDone}
+          teamId={displayTeamName}
+          memberNames={memberNames}
+          finalScore={totalScore}
+          teamRank={rank}
+          roundsDone={roundsDone}
+          roundSummaries={roundSummaries.length > 0 ? roundSummaries : undefined}
         />
 
         {/* 4. Round Breakdown Accordion */}
-        <VictoryRoundBreakdown />
+        <VictoryRoundBreakdown rounds={detailedRounds.length > 0 ? detailedRounds : undefined} />
 
         {/* 5. Footer CTA */}
         <div className="mt-8 border-t border-[#1e224d] pt-8 flex flex-col items-center gap-6 text-center">
