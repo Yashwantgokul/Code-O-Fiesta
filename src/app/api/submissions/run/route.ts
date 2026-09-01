@@ -5,39 +5,11 @@ import Round from '@/models/Round';
 import { RoundStatus } from '@/constants/event';
 import { executeTestCases, calculateVerdict, ExecutionMode } from '../../_services/judge.service';
 import { roundService } from '@/app/api/_services/round.service';
-import { getAuthenticatedUser } from '../../_lib/authorization';
-
-declare global {
-  var runCooldownCache: Map<string, number> | undefined;
-}
 
 export async function POST(request: Request) {
   const t0 = performance.now();
   
   try {
-    // ── Rate Limiting ──────────────────────────────────────────────────────
-    const session = await getAuthenticatedUser(request);
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimitKey = session ? session.userId : ip;
-
-    if (!globalThis.runCooldownCache) {
-      globalThis.runCooldownCache = new Map();
-    }
-    const lastRunTime = globalThis.runCooldownCache.get(rateLimitKey) || 0;
-    const now = Date.now();
-    const diffSeconds = (now - lastRunTime) / 1000;
-    const COOLDOWN_SECONDS = 5;
-
-    if (diffSeconds < COOLDOWN_SECONDS) {
-      return NextResponse.json(
-        { error: `Please wait ${Math.ceil(COOLDOWN_SECONDS - diffSeconds)} seconds before running again.` },
-        { status: 429 }
-      );
-    }
-    
-    globalThis.runCooldownCache.set(rateLimitKey, now);
-    // ───────────────────────────────────────────────────────────────────────
-
     const body = await request.json();
     const { code, language, customInput, problemId, mode = 'custom', roundNumber } = body;
     if (roundNumber === 2) {

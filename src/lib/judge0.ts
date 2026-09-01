@@ -7,11 +7,6 @@ export const LANGUAGE_IDS: Record<string, number> = {
   go: 60, // Go (1.13.5)
 };
 
-// Extra CPU budget (seconds) for languages with heavy startup costs (e.g. JVM)
-export const LANGUAGE_TIME_BONUS: Record<string, number> = {
-  java: 2.0, // JVM cold-start overhead
-};
-
 export interface Judge0Submission {
   source_code: string;
   language_id: number;

@@ -53,18 +53,6 @@ export async function requireAuthentication(
     throw new UnauthorizedError();
   }
 
-  // Enforce single device login
-  if (session.sessionId) {
-    const User = (await import('@/models/User')).default;
-    const connectDB = (await import('@/lib/db')).default;
-    await connectDB();
-    const user = await User.findById(session.userId).select('sessionId').lean();
-    
-    if (!user || user.sessionId !== session.sessionId) {
-      throw new UnauthorizedError('Session expired. You have logged in from another device.');
-    }
-  }
-
   return session;
 }
 

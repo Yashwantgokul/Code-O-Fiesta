@@ -133,7 +133,6 @@ export function useCodingIDE(
   const resetCode = () => {
     const defaultCode = getDefaultCode(language);
     setCode(defaultCode);
-    return defaultCode;
   };
 
   const run = async (runMode: 'examples' | 'custom' = 'custom') => {

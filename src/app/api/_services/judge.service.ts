@@ -1,4 +1,4 @@
-import { submitBatch, getBatchSubmissions, LANGUAGE_IDS, LANGUAGE_TIME_BONUS, Judge0Submission, Judge0Result } from '@/lib/judge0';
+import { submitBatch, getBatchSubmissions, LANGUAGE_IDS, Judge0Submission, Judge0Result } from '@/lib/judge0';
 
 export type Verdict = 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'COMPILATION_ERROR' | 'RUNTIME_ERROR' | 'PENDING' | 'EXECUTED';
 
@@ -85,47 +85,63 @@ export async function executeTestCases(params: ExecuteParams): Promise<TestCaseR
   const { submitCode } = await import('@/lib/judge0');
   const decodeBase64 = (str: string | null) => str ? Buffer.from(str, 'base64').toString('utf-8') : '';
 
-  // Give languages with expensive startup (e.g. Java JVM) extra CPU budget
-  const timeBonus = LANGUAGE_TIME_BONUS[params.language] ?? 0;
-  const effectiveCpuLimit = (params.cpuTimeLimit || 2.0) + timeBonus;
+  // For custom mode or single test case: direct execution (fastest path)
+  if (params.mode === 'custom' || params.testCases.length <= 1) {
+    const tc = params.testCases[0] || { input: '' };
+    const result = await submitCode({
+      source_code: params.sourceCode,
+      language_id: languageId,
+      stdin: tc.input || '',
+      expected_output: undefined,
+      cpu_time_limit: params.cpuTimeLimit || 2.0,
+      memory_limit: params.memoryLimit || 128000,
+    }, true);
 
-  // One HTTP call to queue all test cases as a batch (avoids N separate HTTP requests).
-  // Then poll every 200ms until all are in a terminal state (status.id >= 3).
-  // This keeps the user's code standard (no while(t--) required) but optimizes the network layer.
+    const stdout = decodeBase64(result.stdout);
+    const stderr = decodeBase64(result.stderr);
+    const compileOutput = decodeBase64(result.compile_output);
+
+    let matchesExpected = true;
+    if (params.mode !== 'custom' && tc.expectedOutput !== undefined) {
+      matchesExpected = compareOutputs(stdout, tc.expectedOutput);
+    }
+
+    const verdict = mapJudge0StatusToVerdict(result.status.id, matchesExpected, params.mode);
+
+    return [{
+      caseNumber: 1,
+      verdict,
+      input: tc.input,
+      expectedOutput: params.mode !== 'custom' ? tc.expectedOutput : undefined,
+      actualOutput: stdout,
+      stderr,
+      compileOutput,
+      executionTime: result.time ? parseFloat(result.time) * 1000 : 0,
+      memory: result.memory || 0,
+      matchesExpected,
+    }];
+  }
+
+  // For examples/submit with multiple test cases: concurrent execution
+  // Each submission uses the NATIVE language_id, so Judge0 handles
+  // compilation separately from execution. Compilation time does NOT
+  // count against cpu_time_limit.
   const submissions: Judge0Submission[] = params.testCases.map(tc => ({
     source_code: params.sourceCode,
     language_id: languageId,
     stdin: tc.input || '',
     expected_output: undefined,
-    cpu_time_limit: effectiveCpuLimit,
+    cpu_time_limit: params.cpuTimeLimit || 2.0,
     memory_limit: params.memoryLimit || 128000,
   }));
 
-  const batchTokens = await submitBatch(submissions);
-  const tokens = batchTokens.map(t => t.token);
+  // Fire all test cases concurrently with wait=true
+  // Judge0 compiles each independently but all requests start simultaneously
+  const finalSubmissions = await Promise.all(
+    submissions.map(sub => submitCode(sub, true))
+  );
 
-  // Poll until every token reaches a terminal state.
-  // Judge0 status IDs: 1=In Queue, 2=Processing, 3+=terminal (done/error)
-  const POLL_INTERVAL_MS = 200;
-  const MAX_POLLS = 50; // 10s max total wait
-  let finalResults: Judge0Result[] = [];
-
-  for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
-    const { submissions: polled } = await getBatchSubmissions(tokens);
-    // Guard: treat missing status as still-pending (status.id < 3)
-    const allDone = polled.every(r => (r.status?.id ?? 0) >= 3);
-    if (allDone) {
-      finalResults = polled;
-      break;
-    }
-    if (attempt < MAX_POLLS - 1) {
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-    } else {
-      finalResults = polled; // timeout — return whatever we have
-    }
-  }
-
-  return finalResults.map((res, idx) => {
+  return finalSubmissions.map((res, idx) => {
     const tc = params.testCases[idx];
     const stdout = decodeBase64(res.stdout);
     const stderr = decodeBase64(res.stderr);
@@ -136,9 +152,7 @@ export async function executeTestCases(params: ExecuteParams): Promise<TestCaseR
       matchesExpected = compareOutputs(stdout, tc.expectedOutput);
     }
 
-    // Guard: if status is missing (malformed response), treat as PENDING
-    const statusId = res.status?.id ?? 1;
-    const verdict = mapJudge0StatusToVerdict(statusId, matchesExpected, params.mode);
+    const verdict = mapJudge0StatusToVerdict(res.status.id, matchesExpected, params.mode);
 
     return {
       caseNumber: idx + 1,
