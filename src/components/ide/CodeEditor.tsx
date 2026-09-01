@@ -11,6 +11,7 @@ interface CodeEditorProps {
   language: SupportedLanguage;
   fontSize?: number;
   readOnly?: boolean;
+  copyPasteBlocker?: boolean;
   violations?: ConstraintViolation[];
   onCursorChange?: (line: number, column: number) => void;
 }
@@ -26,6 +27,7 @@ const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
   language,
   fontSize = 14,
   readOnly = false,
+  copyPasteBlocker = false,
   violations = [],
   onCursorChange,
 }, ref) => {
@@ -98,6 +100,24 @@ const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(({
   useEffect(() => {
     applyDecorations();
   }, [violations]);
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (copyPasteBlocker && editorRef.current) {
+        const domNode = editorRef.current.getDomNode();
+        // Check if the paste target is inside the Monaco editor
+        if (domNode && domNode.contains(e.target as Node)) {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("Pasting code is disabled in this contest.");
+        }
+      }
+    };
+
+    // Use capture phase to intercept the event BEFORE Monaco handles it
+    window.addEventListener('paste', handlePaste, true);
+    return () => window.removeEventListener('paste', handlePaste, true);
+  }, [copyPasteBlocker]);
 
   const MONACO_LANGUAGE_MAP: Record<SupportedLanguage, string> = {
     c: 'c',

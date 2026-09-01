@@ -6,6 +6,11 @@ import dynamic from 'next/dynamic';
 // Hooks
 import { useProblemState } from '@/hooks/useProblemState';
 import { useCodingIDE } from '@/hooks/useCodingIDE';
+import { useIntegrityMonitoring } from '@/hooks/useIntegrityMonitoring';
+import { useGlobalSettings } from '@/hooks/useGlobalSettings';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 // Types
 import { RoundIDEConfig } from '@/types/problem';
@@ -33,6 +38,7 @@ import ErrorState from '@/components/common/ErrorState';
 // Round 2 Overlays
 import ActiveMemberIndicator from '@/components/round2/ActiveMemberIndicator';
 import RelayStatus from '@/components/round2/RelayStatus';
+import StrictModeProtection from './StrictModeProtection';
 
 
 const CodeEditor = dynamic(() => import('./CodeEditor'), { ssr: false });
@@ -107,6 +113,33 @@ export default function CodingIDE({
   const [fontSize, setFontSize] = useState(14);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+
+  // 4. Integrity Monitoring
+  useIntegrityMonitoring(true);
+  const { strictMode, copyPasteBlocker } = useGlobalSettings();
+
+  const { data: integrityData } = useSWR('/api/integrity/status', fetcher, {
+    refreshInterval: 5000,
+  });
+  const isSubmissionsLocked = integrityData?.isSubmissionsLocked || false;
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsBrowserFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    setIsBrowserFullscreen(!!document.fullscreenElement);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const requestFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch (e) {
+      console.error('Failed to enter fullscreen', e);
+    }
+  };
 
   // Relay time is display-only. The Round 2 page refreshes authoritative
   // server timestamps; this component never changes competition state.
@@ -196,6 +229,28 @@ export default function CodingIDE({
     return <ErrorState message={problemError || 'Problem details could not be loaded.'} />;
   }
 
+  if (strictMode && !isBrowserFullscreen) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#0a0a1a] text-white p-6 text-center z-50 fixed inset-0">
+        <div className="mb-6 bg-red-500/10 p-4 rounded-full border border-red-500/30">
+          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold mb-4">Fullscreen Mode Required</h1>
+        <p className="text-slate-400 max-w-md mb-8">
+          This contest requires you to remain in fullscreen mode. Exiting fullscreen, switching tabs, or minimizing the window will be recorded as suspicious activity.
+        </p>
+        <button
+          onClick={requestFullscreen}
+          className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors shadow-lg shadow-purple-500/20"
+        >
+          Enter Fullscreen to Continue
+        </button>
+      </div>
+    );
+  }
+
   // Handle restoring code callback from history
   const handleRestoreCode = (restoredCode: string, restoredLang: string) => {
     setCode(restoredCode);
@@ -219,8 +274,9 @@ export default function CodingIDE({
 
   return (
     <SubmissionController value={controllerValue}>
-      {/* Main Page Layout Wrapper */}
-      <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
+      <StrictModeProtection strictMode={strictMode}>
+        {/* Main Page Layout Wrapper */}
+        <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
         
         {/* Relay Round Info Header */}
         {mode === 'relay' && roundConfig && (
@@ -298,6 +354,7 @@ export default function CodingIDE({
                   language={language}
                   fontSize={fontSize}
                   readOnly={isLocked}
+                  copyPasteBlocker={copyPasteBlocker}
                   violations={submitResult?.constraintViolations}
                   onCursorChange={(line, col) => setCursorPosition({ line, column: col })}
                 />
@@ -400,9 +457,9 @@ export default function CodingIDE({
                 />
                 <SubmitButton
                   onClick={() => submit(onSolve)}
-                  disabled={isRunning || isSubmitting || isLocked}
+                  disabled={isRunning || isSubmitting || isLocked || isSubmissionsLocked}
                   isSubmitting={isSubmitting}
-                  isLocked={isLocked}
+                  isLocked={isLocked || isSubmissionsLocked}
                 />
               </div>
             </div>
@@ -429,6 +486,7 @@ export default function CodingIDE({
           </button>
         </div>
       </div>
+      </StrictModeProtection>
     </SubmissionController>
   );
 }
