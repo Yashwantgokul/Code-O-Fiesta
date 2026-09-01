@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       teamId: user.teamId,
       teamMember: user.teamMember,
       role: user.role,
-      sessionId: crypto.randomUUID(),
+      sessionId: user.sessionId, // use the UUID already persisted to DB by loginAdmin()
     });
 
     const response = NextResponse.json(
