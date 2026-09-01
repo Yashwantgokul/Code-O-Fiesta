@@ -33,6 +33,12 @@ const Round1ProblemSchema = new Schema(
       enum: Object.values(RoundProblemStatus),
       default: RoundProblemStatus.PENDING,
     },
+    // Best testcase-based score achieved across all submissions for this
+    // problem; never decreases on a worse resubmission.
+    bestScore: {
+      type: Number,
+      default: 0,
+    },
   },
   { _id: false, strict: true },
 );
@@ -98,6 +104,11 @@ const Round2QuestionSchema = new Schema(
     member2Submitted: {
       type: Boolean,
       default: false,
+    },
+    // Testcase-based score for this question's single graded submission.
+    score: {
+      type: Number,
+      default: 0,
     },
   },
   { _id: false, strict: true },

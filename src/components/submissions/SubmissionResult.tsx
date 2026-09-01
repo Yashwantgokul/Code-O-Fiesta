@@ -38,7 +38,7 @@ export default function SubmissionResult({
     );
   }
 
-  const { status, testsPassed, totalTests, timeMs, memoryKb } = submitResult;
+  const { status, testsPassed, totalTests, timeMs, memoryKb, pointsEarned } = submitResult;
 
   // Convert status to SubmissionStatus status type
   const inlineStatus = (() => {
@@ -73,6 +73,11 @@ export default function SubmissionResult({
         <div>
           Test Cases: <span className="text-white font-bold">{testsPassed} / {totalTests} Passed</span>
         </div>
+        {pointsEarned !== undefined && (
+          <div>
+            Points Earned: <span className="text-purple-300 font-bold">{pointsEarned}</span>
+          </div>
+        )}
         {timeMs !== undefined && (
           <div>
             Time: <span className="text-white font-bold">{timeMs} ms</span>

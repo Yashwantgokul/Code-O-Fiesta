@@ -34,6 +34,16 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
 
   const isAccepted = status === 'accepted';
 
+  // Shown on every non-accepted verdict so partial credit is never hidden
+  // behind a plain "Wrong Answer" / error label.
+  const testcaseScoreSummary = (
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[11px] font-mono font-bold text-purple-300 w-fit">
+      <span>{testsPassed} / {totalTests} test cases passed</span>
+      <span className="text-slate-600">·</span>
+      <span>Points earned: {pointsEarned ?? 0}</span>
+    </div>
+  );
+
   // Render CSS confetti pieces if accepted
   const renderConfetti = () => {
     if (!isAccepted) return null;
@@ -129,6 +139,8 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
               </div>
             </div>
 
+            {testcaseScoreSummary}
+
             {failedTest && (
               <div className="flex flex-col gap-2.5 font-mono text-xs mt-1">
                 <div className="flex flex-col">
@@ -174,6 +186,8 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
                 </p>
               </div>
             </div>
+
+            {testcaseScoreSummary}
           </div>
         );
 
@@ -195,6 +209,9 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
                 </p>
               </div>
             </div>
+
+            {testcaseScoreSummary}
+
             <div className="flex-grow flex flex-col min-h-[120px]">
               <pre className="flex-grow p-4 bg-red-950/10 border border-red-500/10 rounded-lg text-red-400 overflow-auto text-xs whitespace-pre-wrap max-h-[300px]">
                 {compilerError || 'Undefined compile error.'}
@@ -222,6 +239,8 @@ export default function VerdictPanel({ submitResult, submissionCount, mode }: Ve
                 </p>
               </div>
             </div>
+
+            {testcaseScoreSummary}
           </div>
         );
     }
