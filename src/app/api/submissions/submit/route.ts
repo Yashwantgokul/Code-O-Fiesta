@@ -84,6 +84,26 @@ export async function POST(request: Request) {
     // ── DB Submission ──────────────────────────────────────────────────────
     await connectDB();
 
+    // ── Rate Limiting ──────────────────────────────────────────────────────
+    const COOLDOWN_SECONDS = 10;
+    const latestSubmission = await Submission.findOne({
+      teamId: new Types.ObjectId(teamId),
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (latestSubmission && latestSubmission.createdAt) {
+      const now = new Date();
+      const latestTime = new Date(latestSubmission.createdAt);
+      const diffSeconds = (now.getTime() - latestTime.getTime()) / 1000;
+      if (diffSeconds < COOLDOWN_SECONDS) {
+        return NextResponse.json(
+          { error: `Please wait ${Math.ceil(COOLDOWN_SECONDS - diffSeconds)} seconds before submitting again.` },
+          { status: 429 }
+        );
+      }
+    }
+
     // Resolve roundId from the active round — a team must not be able to
     // submit (and get scored) for a round that isn't the currently active one.
     const round = await Round.findOne({
