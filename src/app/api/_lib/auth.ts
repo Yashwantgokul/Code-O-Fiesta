@@ -13,7 +13,6 @@ export type SessionPayload = {
   teamId: string | null;
   teamMember: string | null;
   role: string;
-  sessionId: string;
 };
 
 export async function createSession(payload: SessionPayload) {

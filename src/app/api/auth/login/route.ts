@@ -18,7 +18,6 @@ export async function POST(request: Request) {
       teamId: user.teamId,
       teamMember: user.teamMember,
       role: user.role,
-      sessionId: user.sessionId,
     });
 
     const response = NextResponse.json(
