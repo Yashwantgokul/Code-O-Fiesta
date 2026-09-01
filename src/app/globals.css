@@ -152,3 +152,99 @@ body {
   animation: shimmerCycle 5s ease infinite;
 }
 
+.victory-export-card {
+  background-color: #0a0a12;
+  background-image: radial-gradient(circle at top left, rgba(139, 92, 246, 0.25) 0%, transparent 60%);
+  border: 2px solid rgba(139, 92, 246, 0.6);
+  box-shadow: 0 0 40px rgba(139, 92, 246, 0.25);
+  color: #ffffff;
+}
+
+.victory-export-topbar {
+  border-bottom: 1px solid #232757;
+}
+
+.victory-export-brand,
+.victory-export-brand span {
+  color: #a78bfa;
+}
+
+.victory-export-title {
+  color: #f8fafc;
+}
+
+.victory-export-badge {
+  background: rgba(88, 28, 135, 0.4);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #c4b5fd;
+}
+
+.victory-export-pill {
+  color: #fbbf24;
+}
+
+.victory-export-team-name {
+  color: #ffffff;
+}
+
+.victory-export-meta {
+  color: #94a3b8;
+}
+
+.victory-export-stats {
+  background: #111229;
+  border: 1px solid #232757;
+}
+
+.victory-export-stat {
+  color: #cbd5e1;
+}
+
+.victory-export-label {
+  color: #64748b;
+}
+
+.victory-export-score,
+.victory-export-rank,
+.victory-export-total {
+  color: #ffffff;
+}
+
+.victory-export-score {
+  color: #a78bfa;
+}
+
+.victory-export-rank {
+  color: #22d3ee;
+}
+
+.victory-export-stat-divider {
+  border-left: 1px solid #232757;
+  border-right: 1px solid #232757;
+}
+
+.victory-export-round-name {
+  color: #e2e8f0;
+}
+
+.victory-export-round-score {
+  color: #34d399;
+}
+
+.victory-export-progress-track {
+  background: #17193b;
+}
+
+.victory-export-progress-bar {
+  background: linear-gradient(90deg, #8b5cf6 0%, #22d3ee 100%);
+}
+
+.victory-export-footer {
+  border-color: #232757;
+  color: #94a3b8;
+}
+
+.victory-export-footer-accent {
+  color: rgba(167, 139, 250, 0.8);
+}
+

@@ -122,51 +122,48 @@ export default function VictoryTeamCard({
       <div className="flex justify-center w-full">
         <div
           id="team-victory-card"
-          className="w-full max-w-2xl bg-[#0a0a12] border-2 border-purple-500/60 rounded-2xl p-6 sm:p-8 relative overflow-hidden shadow-[0_0_40px_rgba(139,92,246,0.25)] flex flex-col gap-6 text-white font-mono"
-          style={{
-            backgroundImage: 'radial-gradient(circle at top left, rgba(139, 92, 246, 0.25) 0%, transparent 60%)',
-          }}
+          className="victory-export-card w-full max-w-2xl rounded-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col gap-6 text-white font-mono"
         >
           {/* Card Top Brand & Event ID */}
-          <div className="flex items-center justify-between border-b border-[#232757] pb-3 text-xs tracking-wider">
+          <div className="victory-export-topbar flex items-center justify-between pb-3 text-xs tracking-wider">
             <div className="flex items-center gap-2">
-              <span className="text-purple-400 font-bold">&lt;/&gt;</span>
-              <span className="font-extrabold text-slate-100 tracking-widest">
-                CODE-O-FIESTA<span className="text-purple-400">_</span>
+              <span className="victory-export-brand font-bold">&lt;/&gt;</span>
+              <span className="victory-export-title font-extrabold tracking-widest">
+                CODE-O-FIESTA<span className="victory-export-brand">_</span>
               </span>
             </div>
-            <span className="px-2.5 py-0.5 rounded bg-purple-900/40 border border-purple-500/30 text-purple-300 text-[11px] font-bold">
+            <span className="victory-export-badge px-2.5 py-0.5 rounded text-[11px] font-bold">
               COF25
             </span>
           </div>
 
           {/* Arena Conquered Pill & Title */}
           <div className="flex flex-col gap-1.5">
-            <div className="inline-flex items-center gap-2 text-amber-400 text-sm font-bold tracking-wider">
+            <div className="victory-export-pill inline-flex items-center gap-2 text-sm font-bold tracking-wider">
               <span>🏆</span>
               <span>ARENA CONQUERED</span>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase">
+            <h3 className="victory-export-team-name text-2xl sm:text-3xl font-black tracking-tight uppercase">
               {safeTeamName}
             </h3>
-            <p className="text-xs text-slate-400 font-sans tracking-wide">
+            <p className="victory-export-meta text-xs font-sans tracking-wide">
               {memberNames.length > 0 ? memberNames.join('  ·  ') : 'Team Participants'}
             </p>
           </div>
 
           {/* Stats Bar */}
-          <div className="grid grid-cols-3 gap-3 bg-[#111229] border border-[#232757] rounded-xl p-4 text-center">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">FINAL SCORE</span>
-              <span className="text-xl sm:text-2xl font-black text-purple-400">{finalScore} PTS</span>
+          <div className="victory-export-stats grid grid-cols-3 gap-3 rounded-xl p-4 text-center">
+            <div className="victory-export-stat flex flex-col gap-1">
+              <span className="victory-export-label text-[10px] font-bold tracking-wider uppercase">FINAL SCORE</span>
+              <span className="victory-export-score text-xl sm:text-2xl font-black">{finalScore} PTS</span>
             </div>
-            <div className="flex flex-col gap-1 border-x border-[#232757]">
-              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">RANK</span>
-              <span className="text-xl sm:text-2xl font-black text-cyan-400">{displayRank}</span>
+            <div className="victory-export-stat victory-export-stat-divider flex flex-col gap-1">
+              <span className="victory-export-label text-[10px] font-bold tracking-wider uppercase">RANK</span>
+              <span className="victory-export-rank text-xl sm:text-2xl font-black">{displayRank}</span>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">ROUNDS</span>
-              <span className="text-xl sm:text-2xl font-black text-white">{roundsDone}</span>
+            <div className="victory-export-stat flex flex-col gap-1">
+              <span className="victory-export-label text-[10px] font-bold tracking-wider uppercase">ROUNDS</span>
+              <span className="victory-export-total text-xl sm:text-2xl font-black">{roundsDone}</span>
             </div>
           </div>
 
@@ -175,18 +172,18 @@ export default function VictoryTeamCard({
             {roundSummaries.map((round) => {
               const pct = round.maxScore > 0 ? Math.min(100, Math.round((round.score / round.maxScore) * 100)) : 100;
               return (
-                <div key={round.id} className="flex flex-col gap-1 text-xs">
-                  <div className="flex items-center justify-between text-slate-300">
-                    <span className="font-medium text-slate-200">{round.name}</span>
-                    <span className="flex items-center gap-1.5 font-bold text-emerald-400">
+                <div key={round.id} className="victory-export-round flex flex-col gap-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="victory-export-round-name font-medium">{round.name}</span>
+                    <span className="victory-export-round-score flex items-center gap-1.5 font-bold">
                       <span>✓</span>
                       <span>{round.score} pts</span>
                     </span>
                   </div>
                   {/* Progress Bar Track */}
-                  <div className="w-full h-1.5 bg-[#17193b] rounded-full overflow-hidden">
+                  <div className="victory-export-progress-track w-full h-1.5 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full"
+                      className="victory-export-progress-bar h-full rounded-full"
                       style={{ width: `${Math.max(10, pct)}%` }}
                     />
                   </div>
@@ -196,9 +193,9 @@ export default function VictoryTeamCard({
           </div>
 
           {/* Card Footer Branding */}
-          <div className="border-t border-[#232757] pt-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-500">
+          <div className="victory-export-footer border-t pt-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px]">
             <span>VIT Chennai · CodeChef Student Chapter</span>
-            <span className="text-purple-400/80 font-bold">EVENT ID: COF25</span>
+            <span className="victory-export-footer-accent font-bold">EVENT ID: COF25</span>
           </div>
         </div>
       </div>

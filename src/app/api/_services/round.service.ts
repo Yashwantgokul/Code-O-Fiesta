@@ -560,9 +560,12 @@ async function getState(
     r2.phaseEndsAt !== undefined &&
     now >= r2.phaseEndsAt;
 
+  // Only Member 2 may submit for grading — Member 1 can write/edit code
+  // during their phase (canEditCode above) but never submit it.
   const canSubmitCode =
     base &&
     active === input.actor.teamMember &&
+    input.actor.teamMember === TeamMember.MEMBER_2 &&
     !(
       phase === Round2Phase.MEMBER_2 &&
       q?.member2Submitted
