@@ -8,6 +8,7 @@ export default function AdminNav() {
   const navItems = [
     { name: 'Live Operations', href: '/admin' },
     { name: 'Question Manager', href: '/admin/questions' },
+    { name: 'Integrity Monitoring', href: '/admin/integrity' },
   ];
 
   return (

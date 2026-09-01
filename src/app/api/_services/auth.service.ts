@@ -1,4 +1,5 @@
 import argon2 from 'argon2';
+import crypto from 'crypto';
 
 import { UserRole } from '@/constants/event';
 import connectDB from '@/lib/db';
@@ -43,6 +44,10 @@ export async function loginUser({
     );
   }
 
+  const sessionId = crypto.randomUUID();
+  user.sessionId = sessionId;
+  await user.save();
+
   return {
     id: user._id.toString(),
     name: user.name,
@@ -50,6 +55,7 @@ export async function loginUser({
     role: user.role,
     teamId: user.teamId?.toString() ?? null,
     teamMember: user.teamMember ?? null,
+    sessionId,
   };
 }
 
@@ -87,6 +93,10 @@ export async function loginAdmin({
     );
   }
 
+  const sessionId = crypto.randomUUID();
+  user.sessionId = sessionId;
+  await user.save();
+
   return {
     id: user._id.toString(),
     name: user.name,
@@ -94,5 +104,6 @@ export async function loginAdmin({
     role: user.role,
     teamId: user.teamId?.toString() ?? null,
     teamMember: user.teamMember ?? null,
+    sessionId,
   };
 }
