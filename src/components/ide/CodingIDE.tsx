@@ -77,10 +77,11 @@ export default function CodingIDE({
     round3Status,
   } = useProblemState(problemId, roundNumber, !hideProblemStatement);
 
-  // Round 3 (constraint mode) allows resubmitting a solved problem to chase
-  // the Short & Sweet / Recursion bonuses, so "solved" must not lock the
-  // editor there the way it does for Round 1's one-and-done problems.
-  const lockAfterSolve = mode !== 'constraint' && isSolved;
+  // Round 1 (standard) and Round 3 (constraint) both allow editing/resubmitting
+  // a solved problem — Round 1 to keep refining a solution, Round 3 to chase
+  // the Short & Sweet / Recursion bonuses. Only relay mode (Round 2) locks
+  // once solved; it primarily gates on turn/phase via the readOnly prop.
+  const lockAfterSolve = mode === 'relay' && isSolved;
 
   // 2. Fetch IDE state
   const {

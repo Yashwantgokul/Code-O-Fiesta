@@ -145,6 +145,11 @@ export default function VictoryRoundBreakdown({ rounds = DEFAULT_DETAILED_ROUNDS
               {/* Accordion content */}
               {isOpen && (
                 <div className="border-t border-[#1e224d] bg-[#0c0d1c] p-4 sm:p-5 overflow-x-auto">
+                  {round.problems.length === 0 ? (
+                    <p className="text-xs text-slate-500 font-mono py-2">
+                      Per-problem breakdown isn&apos;t available for this round.
+                    </p>
+                  ) : (
                   <table className="w-full text-left font-mono text-xs">
                     <thead>
                       <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-[#1e224d] pb-2">
@@ -197,6 +202,7 @@ export default function VictoryRoundBreakdown({ rounds = DEFAULT_DETAILED_ROUNDS
                       ))}
                     </tbody>
                   </table>
+                  )}
                 </div>
               )}
             </div>

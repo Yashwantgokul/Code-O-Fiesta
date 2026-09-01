@@ -11,6 +11,7 @@ import {
   computeRound3Result,
   persistRound3ProblemResult,
 } from '@/app/api/_services/round3.service';
+import { computeProportionalPoints } from '@/app/api/_services/scoring.service';
 
 declare global {
   var submissionCache:
@@ -190,10 +191,18 @@ export async function GET(
       } catch (_) {}
     }
 
+    // Every round awards testcase-proportional partial credit — passing some
+    // (but not all) test cases is never worth zero points. `status` still
+    // reflects the verdict (accepted / wrong_answer / etc.) for display, but
+    // pointsEarned below is always derived from testsPassed / totalTests.
     const constraintViolations: { constraintId: string; message: string }[] = [];
-    let pointsEarned = status === 'accepted' ? 50 : 0;
+    let pointsEarned = computeProportionalPoints(testsPassed, totalTests, 50);
 
-    if (status === 'accepted' && resolvedRoundNumber === 3) {
+    const effectiveTeamId = teamId ?? cachedMeta?.teamId ?? (isDb ? dbSubmission?.teamId?.toString() : null);
+    const effectiveRoundId = cachedMeta?.roundId ?? (isDb ? dbSubmission?.roundId?.toString() : null);
+    const effectiveProblemId = cachedMeta?.problemId ?? (isDb ? dbSubmission?.problemId?.toString() : null);
+
+    if (resolvedRoundNumber === 3) {
       // Get AST result and metadata
       const ast = isDb
         ? dbSubmission?.astAnalysis
@@ -202,11 +211,6 @@ export async function GET(
       const isFirstAttempt =
         cachedMeta?.isFirstAttempt ??
         (isDb ? dbSubmission?.submissionNumber <= 1 : true);
-
-      // Resolve teamId and roundId for persisting
-      const effectiveTeamId = teamId ?? cachedMeta?.teamId ?? (isDb ? dbSubmission?.teamId?.toString() : null);
-      const effectiveRoundId = cachedMeta?.roundId ?? (isDb ? dbSubmission?.roundId?.toString() : null);
-      const effectiveProblemId = cachedMeta?.problemId ?? (isDb ? dbSubmission?.problemId?.toString() : null);
 
       // Get round config for points values
       let basePoints = 50;
@@ -227,6 +231,8 @@ export async function GET(
       }
 
       const result = computeRound3Result(
+        testsPassed,
+        totalTests,
         ast,
         isFirstAttempt,
         maxLines,
@@ -263,13 +269,8 @@ export async function GET(
           console.error('Failed to persist round3 result:', e);
         }
       }
-    } else if (status === 'accepted' && resolvedRoundNumber !== 3) {
-      // For rounds 1 & 2, just report base points
-      pointsEarned = 50;
-
-      const effectiveTeamId = teamId ?? cachedMeta?.teamId ?? (isDb ? dbSubmission?.teamId?.toString() : null);
-      const effectiveRoundId = cachedMeta?.roundId ?? (isDb ? dbSubmission?.roundId?.toString() : null);
-      const effectiveProblemId = cachedMeta?.problemId ?? (isDb ? dbSubmission?.problemId?.toString() : null);
+    } else if (resolvedRoundNumber === 1 || resolvedRoundNumber === 2) {
+      pointsEarned = computeProportionalPoints(testsPassed, totalTests, 50);
 
       if (effectiveTeamId && effectiveRoundId && effectiveProblemId) {
         try {
@@ -278,8 +279,10 @@ export async function GET(
             new Types.ObjectId(effectiveTeamId),
             new Types.ObjectId(effectiveRoundId),
             effectiveProblemId,
-            resolvedRoundNumber ?? 1,
-            pointsEarned
+            resolvedRoundNumber,
+            testsPassed,
+            totalTests,
+            50,
           );
         } catch (e) {
           console.error('Failed to persist round 1/2 result:', e);

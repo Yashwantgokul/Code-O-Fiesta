@@ -60,20 +60,20 @@ export async function getLeaderboard(adminView = false) {
 
 export async function getTeamResults(teamId: string) {
   await connectDB();
-  
+
   const team = await Team.findById(teamId).lean();
   if (!team) throw new Error('Team not found');
 
   const teamRounds = await TeamRound.find({ teamId }).populate('roundId').lean();
   const scores = await Score.find({ teamId }).lean();
-  
+
   let totalScore = 0;
   const roundDetails = teamRounds.map(tr => {
     const round = tr.roundId as any;
     const detailedScore = scores.find(s => s.roundId.toString() === round._id.toString());
     const finalRoundScore = detailedScore ? detailedScore.totalScore : (tr.score || 0);
     totalScore += finalRoundScore;
-    
+
     return {
       roundNumber: round?.roundNumber,
       status: tr.status,
@@ -87,10 +87,23 @@ export async function getTeamResults(teamId: string) {
       completedAt: tr.completedAt
     };
   });
-  
+
+  // A team is only allowed to know its own rank, never the full standings —
+  // that view is admin-only. Derive it from the same ranking logic used by
+  // the admin leaderboard rather than exposing /api/leaderboard to participants.
+  let rank: number | null = null;
+  try {
+    const fullLeaderboard = await getLeaderboard(false);
+    const entry = fullLeaderboard.find((e) => e.teamId.toString() === teamId.toString());
+    rank = entry?.rank ?? null;
+  } catch {
+    rank = null;
+  }
+
   return {
     teamName: team.name,
     totalScore,
+    rank,
     rounds: roundDetails,
     status: team.status
   };

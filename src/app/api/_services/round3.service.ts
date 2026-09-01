@@ -5,6 +5,7 @@ import Problem from '@/models/Problem';
 import Round from '@/models/Round';
 import TeamRound from '@/models/TeamRound';
 import { RoundStatus, TeamRoundStatus } from '@/constants/event';
+import { computeProportionalPoints } from '@/app/api/_services/scoring.service';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ROUND_NUMBER = 3;
@@ -197,8 +198,15 @@ export async function getRound3StateForTeam(
 /**
  * Compute Round 3 constraint bonuses from AST + submission count.
  * Pure function — no DB writes here; the caller persists results.
+ *
+ * The base score is testcase-proportional (same formula as every other
+ * round): a partial pass earns a partial share of basePoints. The Ouroboros
+ * / Short & Sweet / One-Shot-Wonder bonuses still require every test case to
+ * pass — they're rewards for a fully correct solution, not partial credit.
  */
 export function computeRound3Result(
+  testsPassed: number,
+  totalTests: number,
   astResult: any,
   isFirstAttempt: boolean,
   maxLines: number,
@@ -207,6 +215,23 @@ export function computeRound3Result(
   shortAndSweetPoints: number,
   oneShotWonderPoints: number,
 ): Round3ConstraintResult {
+  const isFullySolved = totalTests > 0 && testsPassed === totalTests;
+  const baseScore = computeProportionalPoints(testsPassed, totalTests, basePoints);
+
+  if (!isFullySolved) {
+    return {
+      baseSolvePassed: false,
+      ouroborosPassed: false,
+      shortAndSweetPassed: false,
+      oneShotWonderPassed: false,
+      baseScore,
+      bonusScore: 0,
+      totalScore: baseScore,
+      pointsEarned: baseScore,
+      constraintViolations: [],
+    };
+  }
+
   const constraintViolations: { constraintId: string; message: string }[] = [];
   let bonusScore = 0;
 
@@ -262,14 +287,14 @@ export function computeRound3Result(
     });
   }
 
-  const totalScore = basePoints + bonusScore;
+  const totalScore = baseScore + bonusScore;
 
   return {
     baseSolvePassed: true,
     ouroborosPassed,
     shortAndSweetPassed,
     oneShotWonderPassed,
-    baseScore: basePoints,
+    baseScore,
     bonusScore,
     totalScore,
     pointsEarned: totalScore,
@@ -285,6 +310,10 @@ export function computeRound3Result(
  * determined by the team's literal first submission attempt and never change
  * afterwards. `ouroborosPassed` ("Recursion") and `shortAndSweetPassed` reflect
  * the latest accepted submission, so they're recomputed on every call.
+ * `baseScore` is testcase-proportional and never decreases on a worse
+ * resubmission — a partial-credit submission only ever updates baseScore
+ * (and never touches bonuses/lock state); bonuses are only (re)evaluated on
+ * a fully-solved submission.
  *
  * Returns the final, authoritative per-problem state after persisting, or null
  * if the problem isn't assigned to this team.
@@ -314,14 +343,45 @@ export async function persistRound3ProblemResult(
   if (idx === -1) return null; // Problem not assigned to this team
 
   const existing = problems[idx] as any;
+  const previousBaseScore = existing.baseScore ?? 0;
+  const newBaseScore = Math.max(previousBaseScore, result.baseScore);
 
-  // Freeze oneShotWonderPassed the first time we ever persist a result for
-  // this problem (i.e. on the team's first accepted submission). Later
-  // accepted submissions must not be able to flip it — resubmitting to chase
-  // Short & Sweet / Recursion can never grant or revoke the First Submit bonus.
-  // `baseSolvePassed` is included for documents written before this field
-  // existed: any problem already marked solved already has its correct,
-  // permanently-frozen oneShotWonderPassed value from that first solve.
+  if (!result.baseSolvePassed) {
+    // Partial credit only: bump baseScore if this submission did better than
+    // any before it, but never touch bonuses, the lock, or solved status.
+    const existingBonusScore = existing.bonusScore ?? 0;
+    if (newBaseScore > previousBaseScore) {
+      const totalScore = newBaseScore + existingBonusScore;
+      teamRound.set(`round3.problems.${idx}.baseScore`, newBaseScore);
+      teamRound.set(`round3.problems.${idx}.totalScore`, totalScore);
+
+      const updatedProblems = teamRound.round3?.problems ?? [];
+      const teamTotalScore = updatedProblems.reduce(
+        (sum: number, p: any, i: number) =>
+          sum + (i === idx ? totalScore : (p.totalScore ?? 0)),
+        0,
+      );
+      teamRound.set('score', teamTotalScore);
+      await teamRound.save();
+    }
+
+    return {
+      baseSolvePassed: existing.baseSolvePassed === true,
+      ouroborosPassed: existing.ouroborosPassed === true,
+      shortAndSweetPassed: existing.shortAndSweetPassed === true,
+      oneShotWonderPassed: existing.oneShotWonderPassed === true,
+      baseScore: newBaseScore,
+      bonusScore: existingBonusScore,
+      totalScore: newBaseScore + existingBonusScore,
+      pointsEarned: newBaseScore + existingBonusScore,
+      constraintViolations: [],
+    };
+  }
+
+  // Freeze oneShotWonderPassed the first time we ever persist a fully-solved
+  // result for this problem. Later accepted submissions must not be able to
+  // flip it — resubmitting to chase Short & Sweet / Recursion can never
+  // grant or revoke the First Submit bonus.
   const oneShotWonderLocked = existing.oneShotWonderLocked === true || existing.baseSolvePassed === true;
   const oneShotWonderPassed = oneShotWonderLocked
     ? existing.oneShotWonderPassed === true
@@ -334,7 +394,7 @@ export async function persistRound3ProblemResult(
     (ouroborosPassed ? points.ouroborosPoints : 0) +
     (shortAndSweetPassed ? points.shortAndSweetPoints : 0) +
     (oneShotWonderPassed ? points.oneShotWonderPoints : 0);
-  const totalScore = points.basePoints + bonusScore;
+  const totalScore = newBaseScore + bonusScore;
 
   const constraintViolations: { constraintId: string; message: string }[] = [];
   if (!ouroborosPassed) {
@@ -354,7 +414,7 @@ export async function persistRound3ProblemResult(
     ouroborosPassed,
     shortAndSweetPassed,
     oneShotWonderPassed,
-    baseScore: points.basePoints,
+    baseScore: newBaseScore,
     bonusScore,
     totalScore,
     pointsEarned: totalScore,
@@ -366,7 +426,7 @@ export async function persistRound3ProblemResult(
   teamRound.set(`round3.problems.${idx}.shortAndSweetPassed`, shortAndSweetPassed);
   teamRound.set(`round3.problems.${idx}.oneShotWonderPassed`, oneShotWonderPassed);
   teamRound.set(`round3.problems.${idx}.oneShotWonderLocked`, true);
-  teamRound.set(`round3.problems.${idx}.baseScore`, points.basePoints);
+  teamRound.set(`round3.problems.${idx}.baseScore`, newBaseScore);
   teamRound.set(`round3.problems.${idx}.bonusScore`, bonusScore);
   teamRound.set(`round3.problems.${idx}.totalScore`, totalScore);
   teamRound.set(`round3.problems.${idx}.completedAt`, existing.completedAt ?? new Date());

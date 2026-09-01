@@ -62,6 +62,8 @@ export default function VictoryTeamCard({
       link.click();
     } catch (err) {
       console.error('Failed to download image:', err);
+      setToastMessage('Could not generate the image. Please try again.');
+      setTimeout(() => setToastMessage(null), 2500);
     } finally {
       setIsDownloading(false);
     }
