@@ -24,7 +24,7 @@ function Round3PageContent() {
 
   const [problems, setProblems] = useState<CrucibleProblem[]>([]);
   const [totalRoundScore, setTotalRoundScore] = useState(0);
-  const maxRoundScore = 420;
+  const [maxRoundScore, setMaxRoundScore] = useState(0);
 
   const [timerStartAt, setTimerStartAt] = useState<number | null>(null);
   const [timerEndAt, setTimerEndAt] = useState<number | null>(null);
@@ -67,7 +67,7 @@ function Round3PageContent() {
             title: p.title || 'Unknown Problem',
             difficulty: (p.difficulty || 'MEDIUM').toUpperCase(),
             description: p.description || '',
-            maxPoints: 140,
+            maxPoints: typeof p.maxScore === 'number' ? p.maxScore : 140,
             status: p.status,
             constraintsMet,
             totalConstraints: 4,
@@ -75,6 +75,7 @@ function Round3PageContent() {
         });
 
         setProblems(mappedProblems);
+        setMaxRoundScore(mappedProblems.reduce((sum: number, p: CrucibleProblem) => sum + p.maxPoints, 0));
       } catch (err: any) {
         setError(err.message || 'Failed to load round state');
       } finally {
@@ -197,7 +198,7 @@ function Round3PageContent() {
               </svg>
               Max Score
             </span>
-            <span className="font-bold text-amber-300">420 Points</span>
+            <span className="font-bold text-amber-300">{maxRoundScore} Points</span>
           </div>
         </div>
       </div>
@@ -236,7 +237,7 @@ function Round3PageContent() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-purple-400 mt-0.5">•</span>
-              <span>Base solve yields 50 points per problem.</span>
+              <span>Each passing test case earns 10 points — partial credit counts.</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-purple-400 mt-0.5">•</span>
@@ -357,8 +358,8 @@ function Round3PageContent() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-2.5 rounded-lg bg-[#121433] border border-[#1f2452]">
                   <div className="text-[10px] font-mono text-emerald-400 font-bold">Base Solve</div>
-                  <div className="text-sm font-mono font-extrabold text-white mt-0.5">+50 PTS</div>
-                  <div className="text-[9px] text-slate-400 mt-0.5">Solve problem</div>
+                  <div className="text-sm font-mono font-extrabold text-white mt-0.5">+10 PTS / test</div>
+                  <div className="text-[9px] text-slate-400 mt-0.5">Per test case passed</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-[#121433] border border-[#1f2452]">
                   <div className="text-[10px] font-mono text-purple-400 font-bold">The Ouroboros</div>
@@ -386,7 +387,7 @@ function Round3PageContent() {
               PROBLEMS (Solve in any order)
             </h2>
             <span className="text-[11px] font-mono text-slate-400">
-              Max potential: 140 PTS / problem
+              10 PTS / test case + up to 90 bonus PTS per problem
             </span>
           </div>
 

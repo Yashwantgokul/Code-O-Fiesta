@@ -39,6 +39,16 @@ const Round1ProblemSchema = new Schema(
       type: Number,
       default: 0,
     },
+    // Test case counts for the submission that earned bestScore, so the UI
+    // can show "X / Y test cases passed" alongside the points.
+    bestTestsPassed: {
+      type: Number,
+      default: 0,
+    },
+    bestTotalTests: {
+      type: Number,
+      default: 0,
+    },
   },
   { _id: false, strict: true },
 );
@@ -110,6 +120,14 @@ const Round2QuestionSchema = new Schema(
       type: Number,
       default: 0,
     },
+    testsPassed: {
+      type: Number,
+      default: 0,
+    },
+    totalTests: {
+      type: Number,
+      default: 0,
+    },
   },
   { _id: false, strict: true },
 );
@@ -144,6 +162,16 @@ const Round3ProblemSchema = new Schema(
       default: false,
     },
     baseScore: {
+      type: Number,
+      default: 0,
+    },
+    // Test case counts backing baseScore, so the UI can show "X / Y test
+    // cases passed" for the best submission recorded so far.
+    baseTestsPassed: {
+      type: Number,
+      default: 0,
+    },
+    baseTotalTests: {
       type: Number,
       default: 0,
     },

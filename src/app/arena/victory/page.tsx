@@ -7,11 +7,12 @@ import LoadingState from '@/components/common/LoadingState';
 import VictoryHero from '@/components/victory/VictoryHero';
 import VictoryScoreStrip from '@/components/victory/VictoryScoreStrip';
 import VictoryTeamCard, { RoundSummary } from '@/components/victory/VictoryTeamCard';
-import VictoryRoundBreakdown, { DetailedRound } from '@/components/victory/VictoryRoundBreakdown';
 import VictoryExitModal from '@/components/victory/VictoryExitModal';
 import useAuth from '@/hooks/useAuth';
 import { useTeamResults } from '@/hooks/useTeamResults';
 import { apiCall } from '@/lib/api';
+
+const ROUND_NUMBERS = [1, 2, 3] as const;
 
 const ROUND_NAMES: Record<number, string> = {
   1: 'Round 1: Path of Fate',
@@ -33,10 +34,7 @@ function VictoryPageContent() {
   const [loadingTeamInfo, setLoadingTeamInfo] = useState(true);
   const [showExitModal, setShowExitModal] = useState(false);
 
-  // Team name/members come from /api/team/me (own team only). Rank comes from
-  // useTeamResults()/api/results/me, which derives it server-side — a
-  // participant is never handed the full standings list; that view is
-  // admin-only (see /leaderboard).
+  // Team name/members come from /api/team/me (own team only).
   useEffect(() => {
     let active = true;
 
@@ -60,7 +58,6 @@ function VictoryPageContent() {
     };
   }, []);
 
-  const rank: number | string = results?.rank ?? '—';
   const loading = resultsLoading || loadingTeamInfo;
 
   if (loading) {
@@ -71,28 +68,24 @@ function VictoryPageContent() {
     );
   }
 
-  const rounds = results?.rounds ?? [];
-  const roundsCompletedCount = rounds.filter((r) => r.status === 'COMPLETED').length;
-  const roundsDone = `${roundsCompletedCount} / ${rounds.length || 3}`;
+  // Always show all three rounds, even ones the team hasn't started yet
+  // (no TeamRound document for that round means no entry in results.rounds) —
+  // the certificate should give a complete picture, not just whatever
+  // happens to exist in the DB.
+  const roundsByNumber = new Map((results?.rounds ?? []).map((r) => [r.roundNumber, r]));
+  const roundsCompletedCount = ROUND_NUMBERS.filter((num) => roundsByNumber.get(num)?.status === 'COMPLETED').length;
+  const roundsDone = `${roundsCompletedCount} / ${ROUND_NUMBERS.length}`;
 
-  const roundSummaries: RoundSummary[] = rounds.map((r) => ({
-    id: String(r.roundNumber),
-    name: ROUND_NAMES[r.roundNumber] || `Round ${r.roundNumber}`,
-    score: r.score,
-    maxScore: ROUND_MAX_SCORES[r.roundNumber] || Math.max(r.score, 1),
-    completed: r.status === 'COMPLETED',
-  }));
-
-  const detailedRounds: DetailedRound[] = roundSummaries.map((r) => ({
-    id: `round-${r.id}`,
-    name: r.name.toUpperCase(),
-    score: r.score,
-    maxScore: r.maxScore,
-    completed: r.completed,
-    // Per-problem detail isn't tracked by the results API — the accordion
-    // shows a graceful "not available" message instead of fabricated rows.
-    problems: [],
-  }));
+  const roundSummaries: RoundSummary[] = ROUND_NUMBERS.map((num) => {
+    const r = roundsByNumber.get(num);
+    return {
+      id: String(num),
+      name: ROUND_NAMES[num],
+      score: r?.score ?? 0,
+      maxScore: ROUND_MAX_SCORES[num],
+      completed: r?.status === 'COMPLETED',
+    };
+  });
 
   const displayTeamName = teamName || results?.teamName || user?.name || 'CHAMPIONS';
 
@@ -105,7 +98,6 @@ function VictoryPageContent() {
         {/* 2. Score Summary Strip */}
         <VictoryScoreStrip
           finalScore={totalScore}
-          teamRank={rank}
           roundsDone={roundsDone}
           timeTaken="—"
         />
@@ -115,15 +107,11 @@ function VictoryPageContent() {
           teamId={displayTeamName}
           memberNames={memberNames}
           finalScore={totalScore}
-          teamRank={rank}
           roundsDone={roundsDone}
-          roundSummaries={roundSummaries.length > 0 ? roundSummaries : undefined}
+          roundSummaries={roundSummaries}
         />
 
-        {/* 4. Round Breakdown Accordion */}
-        <VictoryRoundBreakdown rounds={detailedRounds.length > 0 ? detailedRounds : undefined} />
-
-        {/* 5. Footer CTA */}
+        {/* 4. Footer CTA */}
         <div className="mt-8 border-t border-[#1e224d] pt-8 flex flex-col items-center gap-6 text-center">
           <div className="flex flex-col gap-1.5 font-mono">
             <p className="text-xs sm:text-sm text-slate-300 font-semibold">

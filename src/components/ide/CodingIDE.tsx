@@ -52,6 +52,10 @@ interface CodingIDEProps {
   onError?: (error: string) => void;
   readOnly?: boolean;
   hideProblemStatement?: boolean;
+  // Separate from readOnly: lets a member keep editing code while being
+  // barred from submitting it (e.g. Round 2's Member 1, who writes code but
+  // never submits — only Member 2 does).
+  canSubmit?: boolean;
 }
 
 export default function CodingIDE({
@@ -63,6 +67,7 @@ export default function CodingIDE({
   onError,
   readOnly = false,
   hideProblemStatement = false,
+  canSubmit = true,
 }: CodingIDEProps) {
   // 1. Fetch Problem State
   const {
@@ -493,9 +498,9 @@ export default function CodingIDE({
                 />
                 <SubmitButton
                   onClick={() => submit(onSolve)}
-                  disabled={isRunning || isSubmitting || isLocked || isSubmissionsLocked}
+                  disabled={isRunning || isSubmitting || isLocked || isSubmissionsLocked || (mode === 'relay' && !canSubmit)}
                   isSubmitting={isSubmitting}
-                  isLocked={isLocked || isSubmissionsLocked}
+                  isLocked={isLocked || isSubmissionsLocked || (mode === 'relay' && !canSubmit)}
                 />
               </div>
             </div>

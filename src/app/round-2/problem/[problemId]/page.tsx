@@ -178,6 +178,7 @@ export default function Round2ProblemPage({ params }: PageProps) {
           roundConfig={{ mode: 'relay', activeTeamMember: activeMember as any, currentUserId: user.teamMember as string, serverCode: roundState.currentCode, forceSwitchAfterMs: msLeft }}
           readOnly={!allowedActions.canEditCode}
           hideProblemStatement={!allowedActions.canSeeProblem}
+          canSubmit={allowedActions.canSubmitCode === true}
         />
       </main>
     </div>

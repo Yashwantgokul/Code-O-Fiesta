@@ -11,6 +11,7 @@ import {
   getUserTeam,
 } from '@/app/api/_services/problem.service';
 import { RoundStatus } from '@/constants/event';
+import { POINTS_PER_TEST_CASE, maxTestCasesForProblem } from '@/app/api/_services/scoring.service';
 
 import { roundErrorResponse, roundService } from '../../../_services/round.service';
 import { parseRound2Params } from '../../../_validators/round';
@@ -82,11 +83,14 @@ export async function GET(
           const problem = problemMap.get(entry?.problemId?.toString());
           if (!problem) return null;
 
+          const maxTests = maxTestCasesForProblem(problem);
+
           return {
             id: (problem as any)._id.toString(),
             title: (problem as any).title,
             difficulty: String((problem as any).difficulty ?? 'easy').toLowerCase(),
-            points: 50,
+            points: maxTests * POINTS_PER_TEST_CASE,
+            maxTestCases: maxTests,
             statement: (problem as any).description,
             examples: (problem as any).examples ?? [],
             constraints: Array.isArray((problem as any).constraints)
@@ -98,6 +102,11 @@ export async function GET(
             memoryLimit: 256000,
             roundNumber: (problem as any).roundNumber,
             status: entry?.status ?? 'PENDING',
+            // Backend-authoritative testcase-based score, so the problem list
+            // can show actual points earned instead of only the static max.
+            earnedScore: entry?.bestScore ?? 0,
+            testsPassed: entry?.bestTestsPassed ?? 0,
+            totalTests: entry?.bestTotalTests ?? 0,
           };
         })
         .filter(Boolean);
@@ -150,13 +159,17 @@ export async function GET(
 
           const solved = entry?.baseSolvePassed ?? false;
           const inProgress = (entry?.submissionCount ?? 0) > 0 && !solved;
+          const maxTests = maxTestCasesForProblem(problem);
+          const maxBasePoints = maxTests * POINTS_PER_TEST_CASE;
+          const maxBonusPoints = 30 + 20 + 40; // Ouroboros + Short & Sweet + One-Shot-Wonder defaults
 
           return {
             id: problem._id.toString(),
             title: problem.title,
             difficulty: String(problem.difficulty ?? 'medium').toLowerCase(),
-            points: 50, // base; max is 140
-            maxPoints: 140,
+            points: maxBasePoints,
+            maxTestCases: maxTests,
+            maxPoints: maxBasePoints + maxBonusPoints,
             statement: problem.description,
             examples: problem.examples ?? [],
             constraints: Array.isArray(problem.constraints)
@@ -174,6 +187,9 @@ export async function GET(
             // (not client-side submission counting) so a refresh always shows
             // the persisted state, and First Submit never appears to regress.
             baseSolvePassed: solved,
+            earnedScore: entry?.baseScore ?? 0,
+            testsPassed: entry?.baseTestsPassed ?? 0,
+            totalTests: entry?.baseTotalTests ?? 0,
             ouroborosPassed: !!entry?.ouroborosPassed,
             shortAndSweetPassed: !!entry?.shortAndSweetPassed,
             oneShotWonderPassed: !!entry?.oneShotWonderPassed,

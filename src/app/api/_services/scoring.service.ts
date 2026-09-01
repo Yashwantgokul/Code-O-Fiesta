@@ -4,18 +4,39 @@ import TeamRound from '@/models/TeamRound';
 import Score from '@/models/Score';
 
 /**
- * Shared partial-credit formula used by every coding round: each test case
- * is worth an equal share of the problem's base points, independent of
- * whether every test case passed.
+ * Fixed points every coding round awards per passing test case — the same
+ * rate everywhere so scoring is easy to reason about: a problem's maximum
+ * base score is just its test case count x this rate.
+ */
+export const POINTS_PER_TEST_CASE = 10;
+
+/**
+ * Shared partial-credit formula used by every coding round: each individual
+ * test case is worth a fixed number of points, independent of how many
+ * total test cases the problem has or whether every one of them passed.
  */
 export function computeProportionalPoints(
   testsPassed: number,
   totalTests: number,
-  basePoints: number,
 ): number {
   if (totalTests <= 0) return 0;
   const passed = Math.max(0, Math.min(testsPassed, totalTests));
-  return Math.round((passed / totalTests) * basePoints);
+  return passed * POINTS_PER_TEST_CASE;
+}
+
+/**
+ * The test case set a problem is actually judged against — visible + hidden
+ * test cases, falling back to its examples when none are configured. Mirrors
+ * the set the submit route sends to Judge0, so a displayed max score always
+ * matches what a fully-passing submission would actually earn.
+ */
+export function maxTestCasesForProblem(problem: {
+  visibleTestCases?: unknown[];
+  hiddenTestCases?: unknown[];
+  examples?: unknown[];
+} | null | undefined): number {
+  const configured = (problem?.visibleTestCases?.length ?? 0) + (problem?.hiddenTestCases?.length ?? 0);
+  return configured > 0 ? configured : (problem?.examples?.length ?? 0);
 }
 
 /**
@@ -38,14 +59,13 @@ export async function persistRound1And2Result(
   roundNumber: number,
   testsPassed: number,
   totalTests: number,
-  basePoints = 50,
 ) {
   await connectDB();
 
   const teamRound = await TeamRound.findOne({ teamId, roundId });
   if (!teamRound) return;
 
-  const pointsEarned = computeProportionalPoints(testsPassed, totalTests, basePoints);
+  const pointsEarned = computeProportionalPoints(testsPassed, totalTests);
   const isFullySolved = totalTests > 0 && testsPassed === totalTests;
 
   let totalScore: number | null = null;
@@ -60,6 +80,8 @@ export async function persistRound1And2Result(
 
     if (newBest > previousBest) {
       teamRound.set(`round1.problems.${pIndex}.bestScore`, newBest);
+      teamRound.set(`round1.problems.${pIndex}.bestTestsPassed`, testsPassed);
+      teamRound.set(`round1.problems.${pIndex}.bestTotalTests`, totalTests);
     }
     if (isFullySolved) {
       teamRound.set(`round1.problems.${pIndex}.status`, 'SOLVED');
@@ -88,6 +110,8 @@ export async function persistRound1And2Result(
     if (entry.status === 'COMPLETED') return;
 
     teamRound.set(`round2.questions.${qIndex}.score`, pointsEarned);
+    teamRound.set(`round2.questions.${qIndex}.testsPassed`, testsPassed);
+    teamRound.set(`round2.questions.${qIndex}.totalTests`, totalTests);
     teamRound.set(`round2.questions.${qIndex}.status`, 'COMPLETED');
 
     const updatedQuestions = teamRound.round2?.questions ?? [];

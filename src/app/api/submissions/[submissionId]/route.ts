@@ -196,7 +196,7 @@ export async function GET(
     // reflects the verdict (accepted / wrong_answer / etc.) for display, but
     // pointsEarned below is always derived from testsPassed / totalTests.
     const constraintViolations: { constraintId: string; message: string }[] = [];
-    let pointsEarned = computeProportionalPoints(testsPassed, totalTests, 50);
+    let pointsEarned = computeProportionalPoints(testsPassed, totalTests);
 
     const effectiveTeamId = teamId ?? cachedMeta?.teamId ?? (isDb ? dbSubmission?.teamId?.toString() : null);
     const effectiveRoundId = cachedMeta?.roundId ?? (isDb ? dbSubmission?.roundId?.toString() : null);
@@ -212,8 +212,8 @@ export async function GET(
         cachedMeta?.isFirstAttempt ??
         (isDb ? dbSubmission?.submissionNumber <= 1 : true);
 
-      // Get round config for points values
-      let basePoints = 50;
+      // Get round config for bonus point values (base score is always
+      // testsPassed x POINTS_PER_TEST_CASE, not admin-configurable)
       let ouroborosPoints = 30;
       let shortAndSweetPoints = 20;
       let oneShotWonderPoints = 40;
@@ -222,7 +222,6 @@ export async function GET(
       if (effectiveRoundId) {
         try {
           const round = await Round.findById(effectiveRoundId).lean() as any;
-          basePoints = round?.configuration?.round3?.basePoints ?? 50;
           ouroborosPoints = round?.configuration?.round3?.ouroborosPoints ?? 30;
           shortAndSweetPoints = round?.configuration?.round3?.shortAndSweetPoints ?? 20;
           oneShotWonderPoints = round?.configuration?.round3?.oneShotWonderPoints ?? 40;
@@ -236,7 +235,6 @@ export async function GET(
         ast,
         isFirstAttempt,
         maxLines,
-        basePoints,
         ouroborosPoints,
         shortAndSweetPoints,
         oneShotWonderPoints,
@@ -257,7 +255,7 @@ export async function GET(
             new Types.ObjectId(effectiveRoundId),
             effectiveProblemId,
             result,
-            { basePoints, ouroborosPoints, shortAndSweetPoints, oneShotWonderPoints },
+            { ouroborosPoints, shortAndSweetPoints, oneShotWonderPoints },
           );
 
           if (persisted) {
@@ -270,7 +268,7 @@ export async function GET(
         }
       }
     } else if (resolvedRoundNumber === 1 || resolvedRoundNumber === 2) {
-      pointsEarned = computeProportionalPoints(testsPassed, totalTests, 50);
+      pointsEarned = computeProportionalPoints(testsPassed, totalTests);
 
       if (effectiveTeamId && effectiveRoundId && effectiveProblemId) {
         try {
@@ -282,7 +280,6 @@ export async function GET(
             resolvedRoundNumber,
             testsPassed,
             totalTests,
-            50,
           );
         } catch (e) {
           console.error('Failed to persist round 1/2 result:', e);

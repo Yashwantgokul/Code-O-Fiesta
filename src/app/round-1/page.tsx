@@ -38,11 +38,13 @@ function Round1Sidebar({
   solvedCount,
   total,
   roundScore,
+  maxRoundScore,
 }: {
   topic: string;
   solvedCount: number;
   total: number;
   roundScore: number;
+  maxRoundScore: number;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -84,7 +86,7 @@ function Round1Sidebar({
             <span className="text-emerald-400">★</span>
             <div>
               <div className="text-slate-400 text-xs">Max Score</div>
-              <div className="text-white font-medium">150 Points</div>
+              <div className="text-white font-medium">{maxRoundScore} Points</div>
             </div>
           </li>
         </ul>
@@ -204,6 +206,9 @@ function Round1PageContent() {
               difficulty: normalizedDifficulty,
               maxScore: typeof problem.points === 'number' ? problem.points : 50,
               status: normalizedStatus,
+              earnedScore: typeof (problem as any).earnedScore === 'number' ? (problem as any).earnedScore : 0,
+              testsPassed: typeof (problem as any).testsPassed === 'number' ? (problem as any).testsPassed : 0,
+              totalTests: typeof (problem as any).totalTests === 'number' ? (problem as any).totalTests : 0,
             };
           })
           .filter((problem): problem is Round1Problem => !!problem);
@@ -245,6 +250,7 @@ function Round1PageContent() {
 
   const pathInfo = PATH_TOPICS[selectedPath];
   const solvedCount = problems.filter((p) => p.status === 'solved').length;
+  const maxRoundScore = problems.reduce((sum, p) => sum + (p.maxScore || 0), 0);
 
   return (
     <>
@@ -265,6 +271,7 @@ function Round1PageContent() {
             solvedCount={solvedCount}
             total={problems.length}
             roundScore={getRoundScore(1)}
+            maxRoundScore={maxRoundScore}
           />
         }
       >
