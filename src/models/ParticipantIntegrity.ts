@@ -12,6 +12,22 @@ const ParticipantIntegritySchema = new Schema(
       type: Number,
       default: 0,
     },
+    questionAwayCounts: {
+      type: Map,
+      of: Number,
+      default: {},
+    },
+    adminCodeResetHistory: {
+      type: [
+        {
+          problemId: { type: Schema.Types.ObjectId, ref: 'Problem' },
+          code: String,
+          language: String,
+          timestamp: { type: Date, default: Date.now },
+        }
+      ],
+      default: [],
+    },
     totalAwayTimeMs: {
       type: Number,
       default: 0,

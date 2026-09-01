@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function useIntegrityMonitoring(isActive: boolean) {
+export function useIntegrityMonitoring(isActive: boolean, problemId: string | null = null) {
   const awaySessionRef = useRef<{
     active: boolean;
     startedAt: number | null;
@@ -16,7 +16,7 @@ export function useIntegrityMonitoring(isActive: boolean) {
       await fetch('/api/integrity/activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, ...payload }),
+        body: JSON.stringify({ type, problemId, ...payload }),
       });
     } catch (e) {
       console.error('Integrity reporting failed', e);
@@ -88,5 +88,5 @@ export function useIntegrityMonitoring(isActive: boolean) {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
     };
-  }, [isActive]);
+  }, [isActive, problemId]);
 }

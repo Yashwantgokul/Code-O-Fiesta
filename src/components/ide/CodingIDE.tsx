@@ -115,15 +115,18 @@ export default function CodingIDE({
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+  const [editorResetKey, setEditorResetKey] = useState(0);
 
   // 4. Integrity Monitoring
-  useIntegrityMonitoring(true);
-  const { strictMode, copyPasteBlocker } = useGlobalSettings();
+  useIntegrityMonitoring(true, problem?.id as string | undefined || null);
+  const { strictMode, copyPasteBlocker, maxTabSwitches } = useGlobalSettings();
 
-  const { data: integrityData } = useSWR('/api/integrity/status', fetcher, {
+  const { data: integrityData, mutate: mutateIntegrity } = useSWR('/api/integrity/status', fetcher, {
     refreshInterval: 5000,
   });
   const isSubmissionsLocked = integrityData?.isSubmissionsLocked || false;
+  const awaySessionCount = integrityData?.awaySessionCount || 0;
+  const remainingSwitches = Math.max(0, maxTabSwitches - awaySessionCount);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -273,9 +276,30 @@ export default function CodingIDE({
     fetchHistory,
   };
 
+  if (integrityData?.isDisqualified) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black text-white flex flex-col items-center justify-center p-6">
+        <div className="bg-[#0a0a1a] border-2 border-red-900 rounded-xl p-10 max-w-lg w-full text-center shadow-[0_0_50px_rgba(220,38,38,0.3)]">
+          <svg className="w-20 h-20 text-red-600 mx-auto mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h2 className="text-3xl font-black text-red-500 mb-4 tracking-wider uppercase">Team Disqualified</h2>
+          <p className="text-slate-400 text-lg">
+            Your team has been disqualified from the competition by the administrators due to a violation of the event guidelines.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SubmissionController value={controllerValue}>
-      <StrictModeProtection strictMode={strictMode}>
+      <StrictModeProtection 
+        strictMode={strictMode}
+        isSubmissionsLocked={isSubmissionsLocked}
+        remainingSwitches={remainingSwitches}
+        onCheckStatus={async () => { await mutateIntegrity(); }}
+      >
         {/* Main Page Layout Wrapper */}
         <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
         
@@ -286,6 +310,16 @@ export default function CodingIDE({
             <div className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">
               BLIND RELAY ACTIVE
             </div>
+          </div>
+        )}
+
+        {/* Tab Switch Warning Banner */}
+        {strictMode && remainingSwitches <= 2 && !isSubmissionsLocked && (
+          <div className="bg-red-500/20 border-b border-red-500/50 px-6 py-2 flex items-center justify-center gap-2 text-red-200 text-sm font-medium">
+            <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            WARNING: You have {remainingSwitches} tab switch{remainingSwitches === 1 ? '' : 'es'} remaining before your IDE is automatically locked.
           </div>
         )}
 
@@ -341,7 +375,7 @@ export default function CodingIDE({
                 onLanguageChange={setLanguage}
                 fontSize={fontSize}
                 onFontSizeChange={setFontSize}
-                onResetCode={resetCode}
+                onResetCode={() => { resetCode(); setEditorResetKey(k => k + 1); }}
                 isFullscreen={isFullscreen}
                 onToggleFullscreen={() => setIsFullscreen(f => !f)}
                 mode={mode}
@@ -350,6 +384,7 @@ export default function CodingIDE({
               {/* CodeEditor Wrapper with absolute overlay support */}
               <div className="flex-grow relative overflow-hidden bg-[#0d0d1f]">
                 <CodeEditor
+                  key={editorResetKey}
                   value={code}
                   onChange={setCode}
                   language={language}

@@ -36,9 +36,13 @@ function determineStatus(score: number): string {
 export async function POST(request: Request) {
   try {
     const session = await requireAuthentication(request);
+    if (session.role === 'ADMIN') {
+      return NextResponse.json({ success: true, message: 'Admin activity not tracked' });
+    }
+    
     const userId = session.userId;
     const body = await request.json();
-    const { type, reasons = [], durationMs = 0 } = body;
+    const { type, reasons = [], durationMs = 0, problemId } = body;
 
     await connectDB();
 
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
         reasons,
       });
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, status: 'started' });
     } 
     
     if (type === 'END') {
@@ -75,6 +79,16 @@ export async function POST(request: Request) {
       participantSummary.currentAwayStartedAt = undefined;
       participantSummary.lastActivityAt = new Date();
       participantSummary.awaySessionCount += 1;
+      
+      let currentQuestionCount = participantSummary.awaySessionCount;
+      if (problemId) {
+        currentQuestionCount = (participantSummary.questionAwayCounts?.get(problemId) || 0) + 1;
+        if (!participantSummary.questionAwayCounts) {
+          participantSummary.questionAwayCounts = new Map();
+        }
+        participantSummary.questionAwayCounts.set(problemId, currentQuestionCount);
+      }
+
       participantSummary.totalAwayTimeMs += durationMs;
       participantSummary.integrityScore = newScore;
       participantSummary.currentStatus = newStatus;
@@ -86,6 +100,21 @@ export async function POST(request: Request) {
         participantSummary.fullscreenExitCount += 1;
       }
       
+      // Auto-lock check
+      let autoLocked = false;
+      const GlobalSettings = (await import('@/models/GlobalSettings')).default;
+      const settings = await GlobalSettings.findOne();
+      const maxSwitches = settings?.maxTabSwitches ?? 5;
+      
+      if (participantSummary.awaySessionCount >= maxSwitches && !participantSummary.isSubmissionsLocked) {
+        participantSummary.isSubmissionsLocked = true;
+        participantSummary.notes.push({
+          adminId: userId as any,
+          note: `SYSTEM: Automatically locked due to exceeding global max tab switches (${maxSwitches})`
+        });
+        autoLocked = true;
+      }
+      
       await participantSummary.save();
 
       await IntegrityLog.create({
@@ -95,6 +124,15 @@ export async function POST(request: Request) {
         durationMs,
         severity,
       });
+
+      if (autoLocked) {
+        await IntegrityLog.create({
+          userId,
+          type: 'ADMIN_ACTION',
+          details: `SYSTEM: Submissions automatically locked (exceeded ${maxSwitches} tab switches)`,
+          severity: 'HIGH',
+        });
+      }
 
       return NextResponse.json({ success: true });
     }
