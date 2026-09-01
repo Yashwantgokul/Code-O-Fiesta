@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       teamId: user.teamId,
       teamMember: user.teamMember,
       role: user.role,
+      sessionId: crypto.randomUUID(),
     });
 
     const response = NextResponse.json(

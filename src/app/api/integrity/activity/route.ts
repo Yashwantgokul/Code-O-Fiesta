@@ -4,7 +4,7 @@ import IntegrityLog from '@/models/IntegrityLog';
 import ParticipantIntegrity from '@/models/ParticipantIntegrity';
 import { requireAuthentication } from '@/app/api/_lib/authorization';
 
-function calculateSeverity(durationMs: number): string {
+function calculateSeverity(durationMs: number): 'NORMAL' | 'MINOR' | 'SUSPICIOUS' | 'HIGH' | 'CRITICAL' {
   const seconds = durationMs / 1000;
   if (seconds <= 3) return 'NORMAL';
   if (seconds <= 10) return 'MINOR';
@@ -26,7 +26,7 @@ function calculateScorePenalty(durationMs: number, reasons: string[]): number {
   return penalty;
 }
 
-function determineStatus(score: number): string {
+function determineStatus(score: number): 'NORMAL' | 'REVIEW' | 'SUSPICIOUS' | 'HIGH_ALERT' {
   if (score < 5) return 'NORMAL';
   if (score < 10) return 'REVIEW';
   if (score < 20) return 'SUSPICIOUS';
