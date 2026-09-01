@@ -18,7 +18,6 @@ export interface EventProgressProps {
 }
 
 const DEFAULT_STEPS: EventStep[] = [
-  { id: 'workshop', name: 'Workshop', state: 'completed', description: 'Orientation & Rules' },
   { id: 'round-1', name: 'Round 1: Maze of Fate', state: 'completed', description: 'Topic Selection' },
   { id: 'round-2', name: 'Round 2: Blind Relay', state: 'active', description: 'Member Rotation' },
   { id: 'round-3', name: 'Round 3: Constraint Crucible', state: 'upcoming', description: 'Modifiers' },

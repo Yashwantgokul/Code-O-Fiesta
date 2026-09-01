@@ -74,7 +74,13 @@ export default function CodingIDE({
     isSolved,
     nextProblemId,
     prevProblemId,
+    round3Status,
   } = useProblemState(problemId, roundNumber, !hideProblemStatement);
+
+  // Round 3 (constraint mode) allows resubmitting a solved problem to chase
+  // the Short & Sweet / Recursion bonuses, so "solved" must not lock the
+  // editor there the way it does for Round 1's one-and-done problems.
+  const lockAfterSolve = mode !== 'constraint' && isSolved;
 
   // 2. Fetch IDE state
   const {
@@ -95,7 +101,7 @@ export default function CodingIDE({
     submit,
     resetCode,
     fetchHistory,
-  } = useCodingIDE(problemId, mode, roundNumber, roundConfig, readOnly || isSolved);
+  } = useCodingIDE(problemId, mode, roundNumber, roundConfig, readOnly || lockAfterSolve);
 
   // 3. UI and layout states
   const [splitWidth, setSplitWidth] = useState(40); // left panel width %
@@ -332,6 +338,7 @@ export default function CodingIDE({
               submitResult={submitResult}
               submissionCount={submissionHistory.length}
               isSolved={isSolved}
+              round3Status={round3Status}
               onNavigate={(id) => {
                 // Navigate to next/prev problem using dynamic round path
                 window.location.href = `/round-${roundNumber}/problem/${id}`;
@@ -392,7 +399,7 @@ export default function CodingIDE({
                   locked={isLocked}
                   mode={mode}
                   activeTeamMemberName={roundConfig?.activeTeamMember === 'member1' ? 'Member 1' : 'Member 2'}
-                  readOnly={readOnly || isSolved}
+                  readOnly={readOnly || lockAfterSolve}
                 />
               </div>
 

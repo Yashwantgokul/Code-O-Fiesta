@@ -239,15 +239,26 @@ export async function GET(
       pointsEarned = result.pointsEarned;
       constraintViolations.push(...result.constraintViolations);
 
-      // Persist to TeamRound.round3
+      // Persist to TeamRound.round3 — this is the source of truth. It freezes
+      // the "First Submit" bonus based on the team's literal first submission
+      // and always recomputes Short & Sweet / Recursion from this submission,
+      // so the response below must reflect what was actually persisted rather
+      // than this submission's isolated (unfrozen) computation.
       if (effectiveTeamId && effectiveRoundId && effectiveProblemId) {
         try {
-          await persistRound3ProblemResult(
+          const persisted = await persistRound3ProblemResult(
             new Types.ObjectId(effectiveTeamId),
             new Types.ObjectId(effectiveRoundId),
             effectiveProblemId,
             result,
+            { basePoints, ouroborosPoints, shortAndSweetPoints, oneShotWonderPoints },
           );
+
+          if (persisted) {
+            pointsEarned = persisted.pointsEarned;
+            constraintViolations.length = 0;
+            constraintViolations.push(...persisted.constraintViolations);
+          }
         } catch (e) {
           console.error('Failed to persist round3 result:', e);
         }

@@ -3,32 +3,39 @@ import { SubmissionResult } from '@/types/submission';
 
 interface ScoreBreakdownProps {
   submitResult: SubmissionResult;
-  submissionCount: number;
+  submissionCount?: number;
 }
 
-export default function ScoreBreakdown({ submitResult, submissionCount }: ScoreBreakdownProps) {
+export default function ScoreBreakdown({ submitResult }: ScoreBreakdownProps) {
   const violations = submitResult.constraintViolations || [];
   const isAccepted = submitResult.status === 'accepted';
 
   if (!isAccepted) return null;
 
   const baseSolvePoints = 50;
-  
-  const ouroborosViolated = violations.some(v => 
-    v.constraintId === 'ouroboros' || 
-    v.constraintId === 'no-loops' || 
+
+  const ouroborosViolated = violations.some(v =>
+    v.constraintId === 'ouroboros' ||
+    v.constraintId === 'no-loops' ||
     v.constraintId === 'recursion-required'
   );
   const ouroborosPoints = ouroborosViolated ? 0 : 30;
 
-  const shortViolated = violations.some(v => 
-    v.constraintId === 'shortAndSweet' || 
-    v.constraintId === 'max-lines' || 
+  const shortViolated = violations.some(v =>
+    v.constraintId === 'shortAndSweet' ||
+    v.constraintId === 'max-lines' ||
     v.constraintId === 'line-count'
   );
   const shortPoints = shortViolated ? 0 : 20;
 
-  const oneShotPoints = (submissionCount <= 1) ? 40 : 0;
+  // First Submit is frozen by the backend on the team's literal first
+  // submission attempt — read it from constraintViolations, don't recompute
+  // it from submissionCount (that would flip on every resubmission).
+  const oneShotViolated = violations.some(v =>
+    v.constraintId === 'oneShotWonder' ||
+    v.constraintId === 'one-shot-wonder'
+  );
+  const oneShotPoints = oneShotViolated ? 0 : 40;
 
   const totalPoints = baseSolvePoints + ouroborosPoints + shortPoints + oneShotPoints;
 
@@ -44,7 +51,7 @@ export default function ScoreBreakdown({ submitResult, submissionCount }: ScoreB
         <span>+</span>
         <span className={shortViolated ? 'line-through text-red-500/60' : 'text-green-400'}>20 (Short)</span>
         <span>+</span>
-        <span className={submissionCount > 1 ? 'line-through text-red-500/60' : 'text-green-400'}>40 (One-Shot)</span>
+        <span className={oneShotViolated ? 'line-through text-red-500/60' : 'text-green-400'}>40 (One-Shot)</span>
         <span>=</span>
         <span className="text-white font-bold">{totalPoints} PTS</span>
       </div>

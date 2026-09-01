@@ -2,7 +2,6 @@ import type { TeamMember, TeamStatus, Round2Phase } from '@/constants/event';
 
 export type EventLifecycleStatus =
   | 'UPCOMING'
-  | 'WORKSHOP'
   | 'ACTIVE'
   | 'PAUSED'
   | 'COMPLETED';

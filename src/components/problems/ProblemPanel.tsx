@@ -9,6 +9,7 @@ import ProblemConstraints from './ProblemConstraints';
 import ProblemNavigation from './ProblemNavigation';
 import ProblemHiddenOverlay from '@/components/round2/ProblemHiddenOverlay';
 import ConstraintPanel from '@/components/round3/ConstraintPanel';
+import type { Round3PersistedStatus } from '@/hooks/useProblemState';
 
 interface ProblemPanelProps {
   problem: Problem;
@@ -23,6 +24,7 @@ interface ProblemPanelProps {
   submitResult?: SubmissionResult | null;
   submissionCount?: number;
   isSolved?: boolean;
+  round3Status?: Round3PersistedStatus | null;
 }
 
 export default function ProblemPanel({
@@ -38,6 +40,7 @@ export default function ProblemPanel({
   submitResult = null,
   submissionCount = 0,
   isSolved = false,
+  round3Status = null,
 }: ProblemPanelProps) {
   const [activeTab, setActiveTab] = useState<'statement' | 'examples' | 'constraints' | 'submissions'>('statement');
 
@@ -129,10 +132,11 @@ export default function ProblemPanel({
               <ProblemStatement statement={statement} mode={mode} activeConstraints={activeConstraints} />
               {mode === 'constraint' && (
                 <div className="mt-2 pb-4 border-t border-[var(--border-subtle)]">
-                  <ConstraintPanel 
-                    isSolved={isSolved} 
-                    submitResult={submitResult} 
-                    submissionCount={submissionCount} 
+                  <ConstraintPanel
+                    isSolved={isSolved}
+                    submitResult={submitResult}
+                    submissionCount={submissionCount}
+                    persistedStatus={round3Status}
                   />
                 </div>
               )}

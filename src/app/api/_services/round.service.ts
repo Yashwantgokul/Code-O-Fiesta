@@ -553,11 +553,7 @@ async function getState(
 
   const canEditCode =
     base &&
-    active === input.actor.teamMember &&
-    !(
-      phase === Round2Phase.MEMBER_2 &&
-      q?.member2Submitted
-    );
+    active === input.actor.teamMember;
 
   const phaseTimerExpired =
     r2.phaseEndsAt !== null &&
@@ -570,8 +566,7 @@ async function getState(
     !(
       phase === Round2Phase.MEMBER_2 &&
       q?.member2Submitted
-    ) &&
-    phaseTimerExpired; // Allow submission only when phase timer has expired
+    );
 
   return {
     roundNumber: input.roundNumber,

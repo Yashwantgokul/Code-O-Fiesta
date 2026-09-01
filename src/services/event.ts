@@ -1,16 +1,13 @@
 import { apiCall } from '@/lib/api';
 import type { EventState } from '@/types/event';
 
-const WORKSHOP_DURATION_MS = 45 * 60 * 1000;
-
-function buildMockEventState(): EventState {
-  const now = Date.now();
+function buildFallbackEventState(): EventState {
   return {
-    eventStatus: 'WORKSHOP',
+    eventStatus: 'UPCOMING',
     currentRound: 0,
     currentPhase: null,
-    roundStartedAt: new Date(now).toISOString(),
-    roundEndsAt: new Date(now + WORKSHOP_DURATION_MS).toISOString(),
+    roundStartedAt: null,
+    roundEndsAt: null,
     teamStatus: 'ACTIVE',
     teamScore: 0,
     activeMember: null,
@@ -22,11 +19,27 @@ export const eventService = {
   async getEventState(): Promise<EventState> {
     try {
       const data = await apiCall('/api/event/state');
-      if (data?.eventStatus) return data as EventState;
-      throw new Error('Empty event state response');
+      if (!data?.eventStatus) throw new Error('Empty event state response');
+
+      // /api/event/state returns the active Round document (or null) under
+      // currentRound — normalize that into the plain 0-3 number the rest of
+      // the app expects for "which round is the team currently on".
+      const activeRound = data.currentRound as { roundNumber?: number; startedAt?: string | null; endsAt?: string | null } | null;
+
+      return {
+        eventStatus: data.eventStatus,
+        currentRound: (activeRound?.roundNumber ?? 0) as EventState['currentRound'],
+        currentPhase: null,
+        roundStartedAt: activeRound?.startedAt ?? null,
+        roundEndsAt: activeRound?.endsAt ?? null,
+        teamStatus: 'ACTIVE',
+        teamScore: 0,
+        activeMember: null,
+        currentProblem: null,
+      };
     } catch {
-      // Backend event state isn't wired up yet — fall back to a demo workshop state.
-      return buildMockEventState();
+      // Backend event state isn't wired up yet — fall back to a neutral upcoming state.
+      return buildFallbackEventState();
     }
   },
 };

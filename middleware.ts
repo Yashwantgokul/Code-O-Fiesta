@@ -31,7 +31,6 @@ const PROTECTED_ROUTES = [
   '/round-3',
   '/leaderboard',
   '/results',
-  '/workshop',
 ];
 
 // Routes that require admin role

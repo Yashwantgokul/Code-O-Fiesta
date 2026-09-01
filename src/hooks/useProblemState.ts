@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { Problem } from '@/types/problem';
 import { problemsService } from '@/services/problems';
 
+export interface Round3PersistedStatus {
+  baseSolvePassed: boolean;
+  ouroborosPassed: boolean;
+  shortAndSweetPassed: boolean;
+  oneShotWonderPassed: boolean;
+}
+
 export function useProblemState(problemId: string, roundNumber: number, allowProblemFetch = true) {
   const [problem, setProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -9,6 +16,10 @@ export function useProblemState(problemId: string, roundNumber: number, allowPro
   const [isSolved, setIsSolved] = useState(false);
   const [nextProblemId, setNextProblemId] = useState<string | null>(null);
   const [prevProblemId, setPrevProblemId] = useState<string | null>(null);
+  // Round 3 only: the backend-persisted bonus flags for this problem, so the
+  // page can show correct statuses immediately on load/refresh — before the
+  // participant makes any new submission in this session.
+  const [round3Status, setRound3Status] = useState<Round3PersistedStatus | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -57,6 +68,16 @@ export function useProblemState(problemId: string, roundNumber: number, allowPro
             const nextProb = roundProbs[idx + 1];
             setPrevProblemId(prevProb ? (prevProb.id || (prevProb as any)._id) : null);
             setNextProblemId(nextProb ? (nextProb.id || (nextProb as any)._id) : null);
+
+            if (roundNumber === 3) {
+              const entry = roundProbs[idx] as any;
+              setRound3Status({
+                baseSolvePassed: entry.status === 'SOLVED',
+                ouroborosPassed: !!entry.ouroborosPassed,
+                shortAndSweetPassed: !!entry.shortAndSweetPassed,
+                oneShotWonderPassed: !!entry.oneShotWonderPassed,
+              });
+            }
           } else {
             setPrevProblemId(null);
             setNextProblemId(null);
@@ -88,6 +109,7 @@ export function useProblemState(problemId: string, roundNumber: number, allowPro
     isSolved,
     nextProblemId,
     prevProblemId,
+    round3Status,
     examples: problem?.examples || [],
     constraints: problem?.constraints || [],
   };

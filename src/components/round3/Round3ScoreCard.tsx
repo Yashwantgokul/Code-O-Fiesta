@@ -3,32 +3,39 @@ import { SubmissionResult } from '@/types/submission';
 
 interface Round3ScoreCardProps {
   submitResult: SubmissionResult;
-  submissionCount: number;
+  submissionCount?: number;
 }
 
-export default function Round3ScoreCard({ submitResult, submissionCount }: Round3ScoreCardProps) {
+export default function Round3ScoreCard({ submitResult }: Round3ScoreCardProps) {
   const violations = submitResult.constraintViolations || [];
   const isAccepted = submitResult.status === 'accepted';
 
   if (!isAccepted) return null;
 
   const baseSolvePoints = 50;
-  
-  const ouroborosViolated = violations.some(v => 
-    v.constraintId === 'ouroboros' || 
-    v.constraintId === 'no-loops' || 
+
+  const ouroborosViolated = violations.some(v =>
+    v.constraintId === 'ouroboros' ||
+    v.constraintId === 'no-loops' ||
     v.constraintId === 'recursion-required'
   );
   const ouroborosPoints = ouroborosViolated ? 0 : 30;
 
-  const shortViolated = violations.some(v => 
-    v.constraintId === 'shortAndSweet' || 
-    v.constraintId === 'max-lines' || 
+  const shortViolated = violations.some(v =>
+    v.constraintId === 'shortAndSweet' ||
+    v.constraintId === 'max-lines' ||
     v.constraintId === 'line-count'
   );
   const shortPoints = shortViolated ? 0 : 20;
 
-  const oneShotPoints = (submissionCount <= 1) ? 40 : 0;
+  // First Submit is a historical constraint frozen by the backend on the
+  // team's literal first submission — read it from the authoritative
+  // constraintViolations list, never recompute it from submissionCount here.
+  const oneShotViolated = violations.some(v =>
+    v.constraintId === 'oneShotWonder' ||
+    v.constraintId === 'one-shot-wonder'
+  );
+  const oneShotPoints = oneShotViolated ? 0 : 40;
 
   const totalPoints = baseSolvePoints + ouroborosPoints + shortPoints + oneShotPoints;
 
