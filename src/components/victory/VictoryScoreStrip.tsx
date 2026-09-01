@@ -4,14 +4,12 @@ import React from 'react';
 
 interface VictoryScoreStripProps {
   finalScore: number;
-  teamRank: number | string;
   roundsDone?: string;
   timeTaken?: string;
 }
 
 export default function VictoryScoreStrip({
   finalScore,
-  teamRank,
   roundsDone = '3 / 3',
   timeTaken = '1h 17m',
 }: VictoryScoreStripProps) {
@@ -21,12 +19,6 @@ export default function VictoryScoreStrip({
       value: `${finalScore} PTS`,
       valueColor: 'text-purple-400 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]',
       borderHover: 'hover:border-purple-500/50',
-    },
-    {
-      label: 'TEAM RANK',
-      value: typeof teamRank === 'number' && teamRank > 0 ? `#${teamRank}` : String(teamRank || '—'),
-      valueColor: 'text-cyan-400 drop-shadow-[0_0_15px_rgba(6,182,212,0.6)]',
-      borderHover: 'hover:border-cyan-500/50',
     },
     {
       label: 'ROUNDS DONE',
@@ -43,7 +35,7 @@ export default function VictoryScoreStrip({
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {cards.map((card, idx) => (
         <div
           key={idx}

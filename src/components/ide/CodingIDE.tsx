@@ -498,9 +498,9 @@ export default function CodingIDE({
                 />
                 <SubmitButton
                   onClick={() => submit(onSolve)}
-                  disabled={isRunning || isSubmitting || isLocked || isSubmissionsLocked || !canSubmit}
+                  disabled={isRunning || isSubmitting || isLocked || isSubmissionsLocked || (mode === 'relay' && !canSubmit)}
                   isSubmitting={isSubmitting}
-                  isLocked={isLocked || isSubmissionsLocked || !canSubmit}
+                  isLocked={isLocked || isSubmissionsLocked || (mode === 'relay' && !canSubmit)}
                 />
               </div>
             </div>
