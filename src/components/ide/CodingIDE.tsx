@@ -38,6 +38,7 @@ import ErrorState from '@/components/common/ErrorState';
 // Round 2 Overlays
 import ActiveMemberIndicator from '@/components/round2/ActiveMemberIndicator';
 import RelayStatus from '@/components/round2/RelayStatus';
+import StrictModeProtection from './StrictModeProtection';
 
 
 const CodeEditor = dynamic(() => import('./CodeEditor'), { ssr: false });
@@ -267,8 +268,9 @@ export default function CodingIDE({
 
   return (
     <SubmissionController value={controllerValue}>
-      {/* Main Page Layout Wrapper */}
-      <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
+      <StrictModeProtection strictMode={strictMode}>
+        {/* Main Page Layout Wrapper */}
+        <div className={`flex flex-col h-screen lg:h-screen bg-[#0a0a1a] select-none text-white ${isFullscreen ? 'fixed inset-0 z-50 h-screen' : ''}`}>
         
         {/* Relay Round Info Header */}
         {mode === 'relay' && roundConfig && (
@@ -477,6 +479,7 @@ export default function CodingIDE({
           </button>
         </div>
       </div>
+      </StrictModeProtection>
     </SubmissionController>
   );
 }

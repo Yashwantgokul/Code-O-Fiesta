@@ -50,11 +50,11 @@ function IntegrityContent() {
     const newValue = !strictMode;
     let reason = '';
     if (!newValue) {
-      const confirmReason = prompt('⚠ DISABLE STRICT MODE?\nParticipants will no longer be blocked for leaving fullscreen.\nActivity monitoring will continue.\n\nReason:');
+      const confirmReason = prompt('⚠ DISABLE STRICT SCREEN PROTECTION?\nParticipants will no longer be blocked for leaving fullscreen, and the black deterrent screen will be disabled.\nActivity monitoring will continue.\n\nReason:');
       if (confirmReason === null) return;
       reason = confirmReason;
     } else {
-      const confirm = window.confirm('⚠ ENABLE STRICT MODE?\nStrict Mode will:\n• Require fullscreen mode\n• Restrict Run/Submit outside fullscreen\n• Monitor away sessions\n\nExisting participants will receive the updated policy.');
+      const confirm = window.confirm('⚠ ENABLE STRICT SCREEN PROTECTION?\nThis will:\n• Require fullscreen mode\n• Restrict Run/Submit outside fullscreen\n• Activate black deterrent screen on focus loss\n• Monitor away sessions\n\nExisting participants will receive the updated policy instantly.');
       if (!confirm) return;
     }
     
@@ -149,8 +149,8 @@ function IntegrityContent() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between p-4 bg-[#151838] rounded-lg">
               <div>
-                <div className="font-bold mb-1">Strict Mode</div>
-                <div className="text-xs text-slate-400">Enforces fullscreen mode and blocks run/submit if exited.</div>
+                <div className="font-bold mb-1">Strict Screen Protection</div>
+                <div className="text-xs text-slate-400">Activates black screen deterrent on focus loss and enforces fullscreen mode.</div>
               </div>
               <button 
                 onClick={toggleStrictMode}
