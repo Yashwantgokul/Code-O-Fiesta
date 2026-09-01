@@ -126,6 +126,12 @@ const Round3ProblemSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Set the first time a submission for this problem is accepted; from then on
+    // oneShotWonderPassed is frozen and never recomputed from later submissions.
+    oneShotWonderLocked: {
+      type: Boolean,
+      default: false,
+    },
     baseScore: {
       type: Number,
       default: 0,

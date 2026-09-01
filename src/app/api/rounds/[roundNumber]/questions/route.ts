@@ -170,6 +170,13 @@ export async function GET(
             // Round 3 specific
             numberStr: String(idx + 1).padStart(2, '0'),
             status: solved ? 'SOLVED' : inProgress ? 'IN_PROGRESS' : 'NOT_STARTED',
+            // Backend-authoritative bonus flags — the problem page uses these
+            // (not client-side submission counting) so a refresh always shows
+            // the persisted state, and First Submit never appears to regress.
+            baseSolvePassed: solved,
+            ouroborosPassed: !!entry?.ouroborosPassed,
+            shortAndSweetPassed: !!entry?.shortAndSweetPassed,
+            oneShotWonderPassed: !!entry?.oneShotWonderPassed,
             constraintsMet:
               (entry?.ouroborosPassed ? 1 : 0) +
               (entry?.shortAndSweetPassed ? 1 : 0) +

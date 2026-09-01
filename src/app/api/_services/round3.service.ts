@@ -109,6 +109,7 @@ export async function assignRound3Problems(
     ouroborosPassed: false,
     shortAndSweetPassed: false,
     oneShotWonderPassed: false,
+    oneShotWonderLocked: false,
     baseScore: 0,
     bonusScore: 0,
     totalScore: 0,
@@ -279,49 +280,110 @@ export function computeRound3Result(
 /**
  * Persist Round 3 constraint results for a specific problem back to TeamRound.
  * Also updates the total round score.
+ *
+ * `oneShotWonderPassed` ("First Submit") is a historical constraint: it must be
+ * determined by the team's literal first submission attempt and never change
+ * afterwards. `ouroborosPassed` ("Recursion") and `shortAndSweetPassed` reflect
+ * the latest accepted submission, so they're recomputed on every call.
+ *
+ * Returns the final, authoritative per-problem state after persisting, or null
+ * if the problem isn't assigned to this team.
  */
 export async function persistRound3ProblemResult(
   teamId: Types.ObjectId | string,
   roundId: Types.ObjectId | string,
   problemId: string,
   result: Round3ConstraintResult,
-): Promise<void> {
+  points: {
+    basePoints: number;
+    ouroborosPoints: number;
+    shortAndSweetPoints: number;
+    oneShotWonderPoints: number;
+  },
+): Promise<Round3ConstraintResult | null> {
   await connectDB();
 
   const teamRound = await TeamRound.findOne({ teamId, roundId });
-  if (!teamRound) return;
+  if (!teamRound) return null;
 
   const problems = teamRound.round3?.problems ?? [];
   const idx = problems.findIndex(
     (p: any) => p.problemId?.toString() === problemId,
   );
 
-  if (idx === -1) return; // Problem not assigned to this team
+  if (idx === -1) return null; // Problem not assigned to this team
 
-  // Only update if not already solved (don't overwrite a better score)
   const existing = problems[idx] as any;
-  if (existing.baseSolvePassed) return;
 
-  teamRound.set(`round3.problems.${idx}.baseSolvePassed`, result.baseSolvePassed);
-  teamRound.set(`round3.problems.${idx}.ouroborosPassed`, result.ouroborosPassed);
-  teamRound.set(`round3.problems.${idx}.shortAndSweetPassed`, result.shortAndSweetPassed);
-  teamRound.set(`round3.problems.${idx}.oneShotWonderPassed`, result.oneShotWonderPassed);
-  teamRound.set(`round3.problems.${idx}.baseScore`, result.baseScore);
-  teamRound.set(`round3.problems.${idx}.bonusScore`, result.bonusScore);
-  teamRound.set(`round3.problems.${idx}.totalScore`, result.totalScore);
-  teamRound.set(`round3.problems.${idx}.completedAt`, new Date());
+  // Freeze oneShotWonderPassed the first time we ever persist a result for
+  // this problem (i.e. on the team's first accepted submission). Later
+  // accepted submissions must not be able to flip it — resubmitting to chase
+  // Short & Sweet / Recursion can never grant or revoke the First Submit bonus.
+  // `baseSolvePassed` is included for documents written before this field
+  // existed: any problem already marked solved already has its correct,
+  // permanently-frozen oneShotWonderPassed value from that first solve.
+  const oneShotWonderLocked = existing.oneShotWonderLocked === true || existing.baseSolvePassed === true;
+  const oneShotWonderPassed = oneShotWonderLocked
+    ? existing.oneShotWonderPassed === true
+    : result.oneShotWonderPassed;
+
+  const ouroborosPassed = result.ouroborosPassed;
+  const shortAndSweetPassed = result.shortAndSweetPassed;
+
+  const bonusScore =
+    (ouroborosPassed ? points.ouroborosPoints : 0) +
+    (shortAndSweetPassed ? points.shortAndSweetPoints : 0) +
+    (oneShotWonderPassed ? points.oneShotWonderPoints : 0);
+  const totalScore = points.basePoints + bonusScore;
+
+  const constraintViolations: { constraintId: string; message: string }[] = [];
+  if (!ouroborosPassed) {
+    const original = result.constraintViolations.find((v) => v.constraintId === 'ouroboros');
+    constraintViolations.push(original ?? { constraintId: 'ouroboros', message: 'Recursion requirement not met' });
+  }
+  if (!shortAndSweetPassed) {
+    const original = result.constraintViolations.find((v) => v.constraintId === 'shortAndSweet');
+    constraintViolations.push(original ?? { constraintId: 'shortAndSweet', message: 'Code exceeds the line limit' });
+  }
+  if (!oneShotWonderPassed) {
+    constraintViolations.push({ constraintId: 'oneShotWonder', message: 'This was not your first submission attempt' });
+  }
+
+  const finalResult: Round3ConstraintResult = {
+    baseSolvePassed: true,
+    ouroborosPassed,
+    shortAndSweetPassed,
+    oneShotWonderPassed,
+    baseScore: points.basePoints,
+    bonusScore,
+    totalScore,
+    pointsEarned: totalScore,
+    constraintViolations,
+  };
+
+  teamRound.set(`round3.problems.${idx}.baseSolvePassed`, true);
+  teamRound.set(`round3.problems.${idx}.ouroborosPassed`, ouroborosPassed);
+  teamRound.set(`round3.problems.${idx}.shortAndSweetPassed`, shortAndSweetPassed);
+  teamRound.set(`round3.problems.${idx}.oneShotWonderPassed`, oneShotWonderPassed);
+  teamRound.set(`round3.problems.${idx}.oneShotWonderLocked`, true);
+  teamRound.set(`round3.problems.${idx}.baseScore`, points.basePoints);
+  teamRound.set(`round3.problems.${idx}.bonusScore`, bonusScore);
+  teamRound.set(`round3.problems.${idx}.totalScore`, totalScore);
+  teamRound.set(`round3.problems.${idx}.completedAt`, existing.completedAt ?? new Date());
 
   // Recalculate total round score from all problems
   const updatedProblems = teamRound.round3?.problems ?? [];
-  const totalScore = updatedProblems.reduce(
+  const teamTotalScore = updatedProblems.reduce(
     (sum: number, p: any, i: number) =>
-      sum + (i === idx ? result.totalScore : (p.totalScore ?? 0)),
+      sum + (i === idx ? totalScore : (p.totalScore ?? 0)),
     0,
   );
 
-  teamRound.set('score', totalScore);
+  teamRound.set('score', teamTotalScore);
 
   await teamRound.save();
+
+  return finalResult;
 }
 
 /**

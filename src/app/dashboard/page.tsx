@@ -15,7 +15,7 @@ import { useTeamResults } from '@/hooks/useTeamResults';
 import { buildEventProgressSteps } from '@/lib/eventProgress';
 
 const ROUND_ROUTES: Record<0 | 1 | 2 | 3, string> = {
-  0: '/workshop',
+  0: '/round-1',
   1: '/round-1',
   2: '/round-2',
   3: '/round-3',
@@ -42,9 +42,9 @@ function DashboardContent() {
     );
   }
 
-  const enterHref = eventStatus === 'COMPLETED' ? '/results' : (ROUND_ROUTES[currentRound] || '/workshop');
+  const enterHref = eventStatus === 'COMPLETED' ? '/results' : (ROUND_ROUTES[currentRound] || '/round-1');
   const stageLabel =
-    eventStatus === 'COMPLETED' ? 'COMPLETED' : currentRound === 0 ? 'WORKSHOP' : `ROUND 0${currentRound}`;
+    eventStatus === 'COMPLETED' ? 'COMPLETED' : `ROUND 0${currentRound || 1}`;
 
   return (
     <ParticipantLayout>

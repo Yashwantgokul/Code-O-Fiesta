@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAllRoundsStatus } from '@/hooks/useRoundStatus';
 import { RoundStatus } from '@/constants/event';
+import VictoryExitModal from '@/components/victory/VictoryExitModal';
 
 export interface ParticipantSidebarProps {
   className?: string;
@@ -27,6 +28,7 @@ const ROUND_BADGE_LABELS: Record<string, string> = {
 
 export default function ParticipantSidebar({ className = '', onCloseMobile }: ParticipantSidebarProps) {
   const pathname = usePathname();
+  const [showExitModal, setShowExitModal] = useState(false);
   const { rounds } = useAllRoundsStatus();
   const statusByRoundNumber = new Map(rounds.map((r) => [r.roundNumber, r.status]));
 
@@ -38,16 +40,6 @@ export default function ParticipantSidebar({ className = '', onCloseMobile }: Pa
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-    },
-    {
-      id: 'workshop',
-      label: 'WORKSHOP',
-      href: '/workshop',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
     },
@@ -86,12 +78,12 @@ export default function ParticipantSidebar({ className = '', onCloseMobile }: Pa
     },
 
     {
-      id: 'results',
-      label: 'RESULTS',
-      href: '/results',
+      id: 'victory',
+      label: 'VICTORY',
+      href: '/arena/victory',
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
         </svg>
       ),
     },
@@ -163,18 +155,36 @@ export default function ParticipantSidebar({ className = '', onCloseMobile }: Pa
         </nav>
       </div>
 
-      {/* Bottom Section: Connection Telemetry */}
-      <div className="p-4 border-t border-[#191c40] bg-[#070815]">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
-            CONNECTED
-          </span>
+      {/* Bottom Section: Connection Telemetry & Exit Arena Action */}
+      <div className="p-4 border-t border-[#191c40] bg-[#070815] flex flex-col gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+              SYSTEM STATUS
+            </span>
+          </div>
+          <p className="text-[11px] font-mono text-slate-500 mt-1">
+            All systems operational
+          </p>
         </div>
-        <p className="text-[11px] font-mono text-slate-500 mt-1">
-          All systems operational
-        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowExitModal(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-mono font-bold text-rose-400/90 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 transition-all cursor-pointer group shadow-sm"
+        >
+          <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>CLOSE ARENA</span>
+        </button>
       </div>
+
+      <VictoryExitModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+      />
     </aside>
   );
 }
